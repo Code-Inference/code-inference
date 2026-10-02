@@ -12,14 +12,14 @@ OpenCode AI CLI as a Docker Compose service (`tools` profile). Runs from any dir
 docker compose --profile tools run --rm opencode
 
 # Without the compose file (no persistent volumes):
-docker run -it --rm -v "$(pwd)":/workspace ghcr.io/anomalyco/opencode:2.0.6
+docker run -it --rm -v "$(pwd)":/workspace ghcr.io/anomalyco/opencode:2.0.22
 ```
 
 ## Dockerfile (`src/opencode-stack/Dockerfile`)
 
 | Step | Detail |
 |------|--------|
-| **Base** | `ghcr.io/anomalyco/opencode:2.0.6` — the published OpenCode CLI image, pinned via `ARG OPENCODE_VERSION`. (Project moved from archived `opencode-ai/opencode` to `anomalyco/opencode`.) |
+| **Base** | `ghcr.io/anomalyco/opencode:2.0.22` — the published OpenCode CLI image, pinned via `ARG OPENCODE_VERSION`. (Project moved from archived `opencode-ai/opencode` to `anomalyco/opencode`.) |
 | **Git** | `apk add --no-cache git` — needed for opencode's git-aware features |
 | **User** | Non-root `opencode` user (fixed uid/gid, no host mapping) |
 | **XDG dirs** | `~/.config/opencode`, `~/.local/share/opencode`, `~/.local/state/opencode`, `~/.cache/opencode` — created with `opencode` ownership so volumes mount correctly even when empty |
@@ -38,10 +38,10 @@ The template uses the **native v2** config shape. OpenCode 2 still reads v1 synt
 | `options: { baseURL }` | `settings: { baseURL }` |
 | `supportsToolCalls` / `tool_call` | `capabilities.tools` |
 
-**Two v2 footguns, both silent (no error, no warning):**
+**v2 footguns, both silent (no error, no warning):**
 
-1. **`capabilities` is only honored inside a top-level `providers` map.** Under a v1 `provider` map it is parsed and discarded, so the model loses its tool support.
-2. **`capabilities` requires `input` and `output` alongside `tools`.** Supplying `{"tools": true}` on its own drops the *entire provider* (`providers` resolves to `{}`).
+1. **`capabilities` is only honored inside a top-level `providers` map.** Under a v1 `provider` map it is parsed and discarded, so the model loses its tool support. This still applies on 2.0.22.
+2. **`input`/`output` alongside `tools` are belt-and-braces.** On 2.0.6 a model declaring only `{"tools": true}` dropped the *entire provider* (`providers` resolved to `{}`). Fixed upstream by 2.0.22, but the template keeps all three so it is safe on either version.
 
 Verify a config change against the real image rather than by inspection. Mount the file read-only — OpenCode writes a `service.json` credential into its config dir on first run, so mounting the directory would drop a secret into your repo:
 
