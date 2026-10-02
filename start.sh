@@ -28,7 +28,7 @@ case "${1:-}" in
     fi
     if [ -n "$MISSING" ]; then
       echo "Missing config files in $(pwd):"
-      printf "$MISSING"
+      printf '%b' "$MISSING"
       printf "Create from templates? [Y/n]: "
       read -r REPLY || true
       case "$REPLY" in
