@@ -27,6 +27,33 @@ docker run -it --rm -v "$(pwd)":/workspace ghcr.io/anomalyco/opencode:2.0.6
 
 **Note on uid/gid:** The `opencode` user has a fixed uid inside the image. If your host files are owned by a different uid, the container can still read/write them on most Linux setups (bind mount shares the host uid), but files created by opencode inside the container will be owned by the container's `opencode` uid. For strict host uid alignment, some community setups map uid/gid via `--build-arg UID=$(id -u) --build-arg GID=$(id -g)`.
 
+## Config format (`templates/default/opencode.json`)
+
+The template uses the **native v2** config shape. OpenCode 2 still reads v1 syntax and normalizes it in memory, but that fallback silently drops some fields — do not mix the two formats.
+
+| v1 | v2 |
+|----|----|
+| `provider` | `providers` |
+| `npm: "@ai-sdk/openai-compatible"` | `package: "aisdk:@ai-sdk/openai-compatible"` |
+| `options: { baseURL }` | `settings: { baseURL }` |
+| `supportsToolCalls` / `tool_call` | `capabilities.tools` |
+
+**Two v2 footguns, both silent (no error, no warning):**
+
+1. **`capabilities` is only honored inside a top-level `providers` map.** Under a v1 `provider` map it is parsed and discarded, so the model loses its tool support.
+2. **`capabilities` requires `input` and `output` alongside `tools`.** Supplying `{"tools": true}` on its own drops the *entire provider* (`providers` resolves to `{}`).
+
+Verify a config change against the real image rather than by inspection. Mount the file read-only — OpenCode writes a `service.json` credential into its config dir on first run, so mounting the directory would drop a secret into your repo:
+
+```bash
+docker run --rm --entrypoint opencode --user opencode \
+  -e XDG_CONFIG_HOME=/home/opencode/.config \
+  -v "$PWD/templates/default/opencode.json":/home/opencode/.config/opencode/opencode.json:ro \
+  code-inference-opencode:latest debug config
+```
+
+Expect all three providers (`opencode`, `code-inference`, `code-inference-hf`) and a `capabilities` block on `model.gguf`.
+
 ## Compose service (`docker-compose.yml` opencode service)
 
 ```yaml
