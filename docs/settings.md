@@ -388,7 +388,7 @@ Unpinned base image (`ubuntu`). Installs via shell pipe — security note for pr
 
 | Setting | Value |
 |---------|-------|
-| Base | `ghcr.io/anomalyco/opencode:2.0.6` |
+| Base | `ghcr.io/anomalyco/opencode:2.0.22` |
 | Adds | `git` (apk) |
 | User | `opencode` (non-root, created with home) |
 | Workdir | `/workspace` |
@@ -406,7 +406,7 @@ Usage:
 docker compose --profile tools run --rm opencode
 
 # Without compose file (no persistent volumes):
-docker run -it --rm -v "$(pwd)":/workspace ghcr.io/anomalyco/opencode:2.0.6
+docker run -it --rm -v "$(pwd)":/workspace ghcr.io/anomalyco/opencode:2.0.22
 ```
 
 ---
