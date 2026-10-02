@@ -7,7 +7,7 @@
 #
 # For the recommended CLI workflow, see README.md and docs/installation.md.
 
-ARG OPENCODE_VERSION=2.0.6
+ARG OPENCODE_VERSION=2.0.22
 FROM ghcr.io/anomalyco/opencode:${OPENCODE_VERSION}
 
 # Git + SSH are needed by opencode's git-aware features (push, pull)
