@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "provider": {
+  "providers": {
     "opencode": {
       "name": "OpenCode Zen",
       "models": {
@@ -20,15 +20,23 @@
     },
 
     "code-inference": {
-      "npm": "@ai-sdk/openai-compatible",
+      "package": "aisdk:@ai-sdk/openai-compatible",
       "name": "Local Code Inference Server",
-      "options": {
+      "settings": {
         "baseURL": "http://api:8000/v1"
       },
       "models": {
         "model.gguf": {
           "name": "Local Model",
-          "supportsToolCalls": true,
+          "capabilities": {
+            "tools": true,
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "limit": {
             "context": 16384,
             "output": 8192
@@ -37,9 +45,9 @@
       }
     },
     "code-inference-hf": {
-      "npm": "@ai-sdk/openai-compatible",
+      "package": "aisdk:@ai-sdk/openai-compatible",
       "name": "Local Code Inference Server",
-      "options": {
+      "settings": {
         "baseURL": "http://inference-hf:8081/v1"
       },
       "models": {
