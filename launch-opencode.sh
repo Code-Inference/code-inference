@@ -5,7 +5,7 @@ ORIG_PWD="$PWD"
 
 NAME_SUFFIX="$(basename "$ORIG_PWD" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
-cd "$SCRIPT_DIR"
+cd "$SCRIPT_DIR" || exit 1
 
 if [ "$1" = "--full-isolation" ]; then
   shift
@@ -18,6 +18,7 @@ if [ "$1" = "--full-isolation" ]; then
     DISK_NAME=""
     DOCKER_COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
   fi
+  # shellcheck disable=SC2097,SC2098
   PWD="$ORIG_PWD" NAME_SUFFIX="$NAME_SUFFIX" DISK_NAME="$DISK_NAME" exec docker compose -f "$DOCKER_COMPOSE_FILE" -p "$NAME_SUFFIX" --profile stack run --rm --name "opencode-$NAME_SUFFIX" --build --remove-orphans opencode "$@"
 else
   PWD="$ORIG_PWD" exec docker compose --profile stack run --rm --name "opencode-$NAME_SUFFIX" --build --remove-orphans opencode "$@"

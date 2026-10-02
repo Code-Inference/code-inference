@@ -12,14 +12,14 @@ OpenCode AI CLI as a Docker Compose service (`tools` profile). Runs from any dir
 docker compose --profile tools run --rm opencode
 
 # Without the compose file (no persistent volumes):
-docker run -it --rm -v $(pwd):/workspace ghcr.io/anomalyco/opencode
+docker run -it --rm -v "$(pwd)":/workspace ghcr.io/anomalyco/opencode:2.0.6
 ```
 
 ## Dockerfile (`src/opencode-stack/Dockerfile`)
 
 | Step | Detail |
 |------|--------|
-| **Base** | `ghcr.io/anomalyco/opencode` — the published OpenCode CLI image. (Project moved from archived `opencode-ai/opencode` to `anomalyco/opencode`.) |
+| **Base** | `ghcr.io/anomalyco/opencode:2.0.6` — the published OpenCode CLI image, pinned via `ARG OPENCODE_VERSION`. (Project moved from archived `opencode-ai/opencode` to `anomalyco/opencode`.) |
 | **Git** | `apk add --no-cache git` — needed for opencode's git-aware features |
 | **User** | Non-root `opencode` user (fixed uid/gid, no host mapping) |
 | **XDG dirs** | `~/.config/opencode`, `~/.local/share/opencode`, `~/.local/state/opencode`, `~/.cache/opencode` — created with `opencode` ownership so volumes mount correctly even when empty |
