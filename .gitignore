@@ -15,6 +15,7 @@ models/*
 !models/README.md
 opencode.json
 !/templates/default/opencode.json
+service.json
 sessions/
 .sessions/
 **/.DS_Store/*
