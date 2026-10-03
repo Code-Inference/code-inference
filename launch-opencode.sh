@@ -40,6 +40,30 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# --privileged runs a container with host-equivalent access (docker.sock,
+# privileged: true, root). The container is the sandbox boundary, so the mode
+# is only safe when the stack is also isolated from other projects. Require
+# --full-isolation so the widest-blast-radius invocation cannot be reached by
+# the shortest command.
+if [ "$PRIVILEGED" -eq 1 ]; then
+  if [ "$FULL_ISOLATION" -ne 1 ]; then
+    echo "Error: --privileged requires --full-isolation." >&2
+    echo "       It grants host-equivalent access, so it is only offered with" >&2
+    echo "       an isolated stack that cannot collide with other projects." >&2
+    echo "       Try: --full-isolation --privileged --disk-name <disk>" >&2
+    exit 2
+  fi
+  # Without --disk-name this silently falls back to the local compose file,
+  # which shares ${PWD} and the default volume root with every other
+  # project. That is the opposite of the isolation --privileged requires.
+  if [ -z "$DISK_NAME" ]; then
+    echo "Error: --privileged requires --disk-name." >&2
+    echo "       Without it the stack falls back to local volumes shared with" >&2
+    echo "       other projects. Try: --full-isolation --privileged --disk-name <disk>" >&2
+    exit 2
+  fi
+fi
+
 if [ "$FULL_ISOLATION" -eq 1 ] && [ -n "$DISK_NAME" ]; then
   DOCKER_COMPOSE_FILE="$SCRIPT_DIR/docker-compose-full-isolation.yml"
 fi
@@ -47,7 +71,7 @@ fi
 if [ "$PRIVILEGED" -eq 1 ]; then
   PROFILE_NAME="stack_privileged"
   SERVICE_NAME="opencode_privileged"
-  echo "Using privileged compose stack${DISK_NAME:+ with disk name: $DISK_NAME}"
+  echo "Using privileged compose stack with disk name: $DISK_NAME"
   echo "  Grants host-equivalent access (docker.sock + privileged + root)."
   echo "  Only use this on trusted workspaces."
 else
