@@ -28,9 +28,11 @@ code-inference --help        # show usage
 `code-inference` is a thin wrapper around `docker compose` from this repo. It:
 
 1. Clones the repo to `~/.code-inference/` (one-time install)
-2. On each run, calls `docker compose --profile tools run --rm opencode` from your project directory
+2. On each run, calls `docker compose --profile stack run --rm opencode` from your project directory
 3. Mounts your project at `/workspace` inside the opencode container
 4. The local inference stack (`llama.cpp` + API) runs alongside via the `stack` profile
+
+`--full-isolation --disk-name <disk>` scopes volumes per project and places them on an external disk. `--full-isolation --privileged --disk-name <disk>` additionally runs opencode with `docker.sock` and `privileged: true`, so it can spawn nested containers — the container becomes the sandbox boundary instead of running opencode directly on your host. See [docs/opencode-stack.md](docs/opencode-stack.md#--privileged-running-opencode-inside-a-sandbox).
 
 The `--fresh` flag skips the compose stack and runs opencode standalone via `ghcr.io/anomalyco/opencode` with persistent named volumes.
 

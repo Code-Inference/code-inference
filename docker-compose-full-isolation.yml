@@ -131,8 +131,12 @@ services:
       - opencode_state:/home/opencode/.local/state/opencode
       - opencode_cache:/home/opencode/.cache/opencode
 
-  # Opt-in only: grants host-equivalent access via docker.sock + privileged
-  # + root. Reached only via `launch-opencode.sh --privileged`.
+  # Grants host-equivalent access (docker.sock + privileged: true + root).
+  # The container is the sandbox boundary; the host is what this protects.
+  # Only reachable with --full-isolation --privileged --disk-name <disk>:
+  # the guard in launch-opencode.sh enforces it, and opencode_privileged
+  # exists in no other compose file, so an isolated stack is structural
+  # rather than merely conventional.
   opencode_privileged:
     container_name: opencode_privileged
     privileged: true

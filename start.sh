@@ -79,6 +79,11 @@ case "${1:-}" in
     shift
     exec "$SCRIPT_DIR/launch-opencode.sh" --full-isolation "$@"
     ;;
+  --privileged)
+    echo "Error: --privileged must be passed with --full-isolation." >&2
+    echo "       Use: code-inference --full-isolation --privileged --disk-name <disk>" >&2
+    exit 2
+    ;;
   --help|-h)
     echo "Usage: code-inference [--fresh|--full-isolation] [--privileged] [--disk-name NAME] [-- opencode-args]"
     echo ""
@@ -86,11 +91,13 @@ case "${1:-}" in
     echo "  --fresh              Run opencode standalone (no inference stack, persistent named volumes)"
     echo "  --full-isolation     Run opencode via compose with scoped project name (inference, ephemeral)"
     echo "    --disk-name NAME   Use external disk for volumes (default: EXT1TB)"
-    echo "  --privileged         Run opencode with docker.sock + privileged + root."
-    echo "                       Grants host-equivalent access. Trusted workspaces only."
+    echo "  --privileged         Run opencode with docker.sock + privileged + root, so it"
+    echo "                       can spawn nested containers. The container is the sandbox"
+    echo "                       boundary; the host stays protected. Requires"
+    echo "                       --full-isolation and --disk-name. Trusted workspaces only."
     echo ""
     echo "Launcher flags may be given in any order and combine:"
-    echo "  code-inference --privileged --full-isolation --disk-name EXT1TB"
+    echo "  code-inference --full-isolation --privileged --disk-name EXT1TB"
     echo "Use -- to pass flags through to opencode itself:"
     echo "  code-inference -- --continue"
     ;;
