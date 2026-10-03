@@ -173,7 +173,6 @@ Excludes `__pycache__`, `.pytest_cache`, `*.pyc`, `.git`, `docs/`. Cannot COPY d
 Usage:
 ```
 docker compose --profile stack up
-docker compose --profile tools run --rm llama-stack llama-model list
 docker compose --profile tools run --rm opencode
 docker compose --profile alternate-inference up
 ```
@@ -192,7 +191,7 @@ docker compose --profile alternate-inference up
 | Script | Action | Destructive? |
 |--------|--------|-------------|
 | `restart.sh` | `down -v` then `up --force-recreate --build -d` | Yes — wipes training_data volume |
-| `launch-opencode.sh` | `docker compose --profile tools run --rm opencode` | No |
+| `launch-opencode.sh` | `docker compose --profile stack run --rm opencode` | No |
 | `Makefile` | build, test, up aliases | No |
 
 ## Deployment / operations
