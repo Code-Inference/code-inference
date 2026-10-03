@@ -80,12 +80,19 @@ case "${1:-}" in
     exec "$SCRIPT_DIR/launch-opencode.sh" --full-isolation "$@"
     ;;
   --help|-h)
-    echo "Usage: code-inference [--fresh|--full-isolation] [-- opencode-args]"
+    echo "Usage: code-inference [--fresh|--full-isolation] [--privileged] [--disk-name NAME] [-- opencode-args]"
     echo ""
     echo "Options:"
     echo "  --fresh              Run opencode standalone (no inference stack, persistent named volumes)"
     echo "  --full-isolation     Run opencode via compose with scoped project name (inference, ephemeral)"
     echo "    --disk-name NAME   Use external disk for volumes (default: EXT1TB)"
+    echo "  --privileged         Run opencode with docker.sock + privileged + root."
+    echo "                       Grants host-equivalent access. Trusted workspaces only."
+    echo ""
+    echo "Launcher flags may be given in any order and combine:"
+    echo "  code-inference --privileged --full-isolation --disk-name EXT1TB"
+    echo "Use -- to pass flags through to opencode itself:"
+    echo "  code-inference -- --continue"
     ;;
   *)
     exec "$SCRIPT_DIR/launch-opencode.sh" "$@"
