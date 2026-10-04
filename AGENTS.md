@@ -13,7 +13,7 @@ Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode
 | Unit tests (no inference needed) | `make test` |
 | Single test | `docker compose --profile stack run --rm --no-deps api pytest -v tests/api/test_prompt.py::TEST_NAME` |
 | Shell into API container | `docker compose --profile stack run --rm api sh` |
-| Full restart (destroys named volumes) | `./restart.sh` |
+| Full restart (preserves volumes) | `code-inference --restart` |
 
 ## Host commands (CI / pre-commit)
 
@@ -62,7 +62,8 @@ Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode
 - **`opencode.json` is gitignored** — `templates/default/opencode.json` is the committed template. Actual config loads `AGENTS.md` + `.opencode/instructions/git-workflow.md`.
 - **`templates/default/`** bootstraps new projects via `start.sh` (copies `opencode.json`, `AGENTS.md`, git workflow, CI workflows).
 - **`.dockerignore` excludes `docs/`** — cannot COPY docs into any image.
-- **`restart.sh`** destroys **all** named volumes (`training_data`, `opencode_*`). Bind-mount `model_data` survives.
+- **`code-inference --restart`** uses `down` **without** `-v`, so all volumes survive: `opencode_config` (auth tokens), `opencode_data` (sessions), `model_hf_data` (HF cache, ~540MB), `training_data`. It exits non-zero if `./models/` is empty. `--purge` is the only way to destroy volumes, and it confirms first. Accepts the same stack flags as the launcher (`--full-isolation`, `--disk-name`, `--privileged`) so it restarts the stack you actually use.
+- **`restart.sh` does not pass `-f`/`-p` beyond its own flags**; it derives the project from `basename "$PWD"` like the launcher. Run it from your project directory.
 - **`make build`** builds both `stack` and `tools` profiles (pulls `ghcr.io/anomalyco/opencode`).
 - **`make up`** always runs `--build` (picks up local code changes).
 - **`CONTEXT_SIZE`:** `.env.example` defaults to 1024; compose shell default is 16384; `.env` sets 16384. Verify your actual value.

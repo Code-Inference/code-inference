@@ -50,8 +50,10 @@ Do **not** commit `.gguf` files to git (see `.gitignore`).
 To quickly restart the stack, run the following script:
 
 ```bash
-./restart.sh
+code-inference --restart
 ```
+
+It preserves all volumes, so stored auth, session history, and the HuggingFace cache survive the restart. It exits non-zero if `./models/` is empty. Pass `--purge` to discard volumes (with confirmation), and `-y` to skip that confirmation.
 
 To download a model that works, run the following command:
 
