@@ -9,12 +9,10 @@ CMD_NAME="${CMD_NAME:-code-inference}"
 echo "==> Installing code-inference to $INSTALL_DIR"
 
 # Check prerequisites
-for cmd in docker; do
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    echo "ERROR: '$cmd' not found. Please install Docker first."
-    exit 1
-  fi
-done
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: 'docker' not found. Please install Docker first."
+  exit 1
+fi
 
 # Clone or update repo
 if [ -d "$INSTALL_DIR" ]; then
@@ -42,5 +40,6 @@ else
 fi
 
 echo "==> Installed! Run '$CMD_NAME' from any project directory."
+echo "    '$CMD_NAME' runs opencode; '$CMD_NAME --agent claude' runs another agent."
 echo "    Use '$CMD_NAME --fresh' for standalone mode (no inference stack)."
 echo "    Use '$CMD_NAME --help' for more info."

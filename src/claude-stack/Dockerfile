@@ -1,0 +1,114 @@
+# syntax=docker/dockerfile:1
+# Claude Code runtime — adds the same dev toolchain as src/opencode-stack on
+# top of an Alpine base, then installs the Claude Code CLI.
+#
+# The CLI is installed by its official installer rather than a published image,
+# so there is no FROM to pin. CLAUDE_CODE_VERSION pins it; the installer accepts
+# a bare VERSION argument (see https://code.claude.com/docs/en/quickstart).
+#
+# Verified on musl/Alpine: the shipped binary runs, printing e.g.
+# "2.1.289 (Claude Code)".
+
+ARG ALPINE_VERSION=3.20
+FROM alpine:${ALPINE_VERSION}
+
+ARG CLAUDE_CODE_VERSION=2.1.289
+ENV CLAUDE_CODE_VERSION=${CLAUDE_CODE_VERSION}
+
+# Env vars are set before the long apk layer so they survive as image config.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Git + SSH are needed by the agent's git-aware features (push, pull).
+# Dev dependencies for linting/formatting (pre-commit, ruff, mypy).
+RUN apk --update --no-cache add \
+    bash \
+    git \
+    openssh \
+    python3 \
+    py3-pip \
+    pre-commit \
+    xclip \
+    ruff \
+    nodejs \
+    npm \
+    deno \
+    github-cli \
+    git-lfs \
+    glab \
+    go \
+    curl \
+    ca-certificates \
+    gnupg \
+    docker-cli \
+    docker-cli-compose \
+    # --- Playwright System Dependencies ---
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ttf-freefont \
+    font-noto-emoji \
+    # --- Rust Dependencies ---
+    rust \
+    cargo \
+    build-base \
+    shellcheck \
+    make \
+    gcc \
+    musl-dev \
+    linux-headers \
+    cmake
+
+# Copy dev requirements before installing so the pip layer caches independently
+# of the rest of the toolchain.
+COPY dev-requirements.txt /tmp/dev-requirements.txt
+
+RUN git init && \
+    pip install --no-cache-dir --break-system-packages -r /tmp/dev-requirements.txt && \
+    pre-commit install
+
+RUN apk add --no-cache libstdc++ libgcc unzip && \
+    curl -fsSL https://bun.sh/install | bash && \
+    mv /root/.bun/bin/bun /usr/local/bin/
+
+# Install the Claude Code CLI via its official installer.
+#
+# The installer defaults to $HOME/.local, which lands under /root (mode 700)
+# and is unreadable by the runtime user. Install to a world-readable path
+# instead: the versioned binary is self-contained, so copying it out of the
+# installer's tree is enough. At runtime the agent still writes its config and
+# credentials to $HOME/.claude, which is the mounted volume.
+RUN curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_CODE_VERSION" && \
+    mkdir -p /opt/agent && \
+    cp "/root/.local/share/claude/versions/${CLAUDE_CODE_VERSION}" /opt/agent/claude && \
+    chmod 0755 /opt/agent/claude && \
+    ln -sf /opt/agent/claude /usr/local/bin/claude && \
+    claude --version
+
+# Non-root user, named for the agent. Each stack gets its own user and home so
+# two agents never share credentials, session history, or settings. This mirrors
+# the agent-prefixed volume names (claude_config, claude_data, ...) and keeps
+# the opencode stack's existing /home/opencode and volumes untouched.
+RUN addgroup -S claude && adduser -S -h /home/claude -G claude claude
+
+# XDG dirs that volumes mount over, so ownership is correct even on first run.
+# ~/.claude holds Claude Code's credentials, hence created here.
+RUN mkdir -p \
+    /home/claude/.config/claude \
+    /home/claude/.local/share/claude \
+    /home/claude/.local/state/claude \
+    /home/claude/.cache/claude \
+    /home/claude/.claude \
+    && chown -R claude:claude /home/claude
+
+# Shared bootstrap: profile, gh auth, git identity, then exec the agent.
+COPY src/common/entrypoint.sh /home/claude/entrypoint.sh
+RUN chown claude:claude /home/claude/entrypoint.sh && \
+    chmod +x /home/claude/entrypoint.sh
+
+USER claude
+ENV AGENT_BIN=claude
+WORKDIR /workspace
+
+ENTRYPOINT ["/home/claude/entrypoint.sh"]

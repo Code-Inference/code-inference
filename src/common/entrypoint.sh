@@ -1,13 +1,16 @@
 #!/usr/bin/env sh
-# Bootstrap script for ephemeral dev container.
+# Shared bootstrap script for every agent stack (opencode, claude, codex,
+# cursor, grok).
 # Run after container rebuild to restore tooling config.
 #
-# TRANSITION: src/common/entrypoint.sh is the shared copy used by the claude,
-# codex, cursor and grok stacks. This copy is kept as-is so the opencode image
-# and pipeline keep building exactly as before while the stacks are split out.
-# The two must stay identical apart from the header and the final exec line:
-# AGENT_BIN is unset here, so `${AGENT_BIN:-opencode}` resolves to `opencode`.
-# Edit a change in both, or run scripts/check-entrypoint-sync.sh to verify.
+# The agent binary to exec is taken from AGENT_BIN, defaulting to opencode,
+# so each stack's Dockerfile only has to set that variable.
+#
+# TRANSITION: src/opencode-stack/entrypoint.sh still holds the pre-split copy,
+# used by the opencode image so its pipeline is unaffected. It is a duplicate of
+# this file apart from the header and the final exec line, and is expected to be
+# deleted once the opencode stack adopts this one. Edit a change in both while
+# both exist, or run scripts/check-entrypoint-sync.sh to verify.
 #
 # Credential handling:
 #   - GH_TOKEN is exported so tools like gh and git can use it,
@@ -144,4 +147,4 @@ if [ -t 0 ]; then
   echo "Git user: $(git config --global user.name 2>/dev/null || echo '<unset>') <$(git config --global user.email 2>/dev/null || echo '<unset>')>"
 fi
 
-exec opencode "$@"
+exec "${AGENT_BIN:-opencode}" "$@"
