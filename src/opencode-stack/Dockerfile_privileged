@@ -87,6 +87,8 @@ RUN chown opencode:opencode /home/opencode/entrypoint.sh && \
     chmod +x /home/opencode/entrypoint.sh
 
 # Override WORKDIR so the container always opens at the mounted source
+# Privileged mode, using root
+USER root
 WORKDIR /workspace
 # Tell Puppeteer to skip the glibc download
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
