@@ -2,6 +2,11 @@
 
 OpenCode AI CLI as a Docker Compose service (`tools` profile). Runs from any directory by mounting the host's current directory as `/workspace`.
 
+This document covers the opencode stack, which is the default. Claude Code, Cursor, Codex and
+Grok Build follow the same shape with their own compose files, launchers and images — see
+[agents.md](agents.md) for the differences (versions, base images, per-agent volumes and
+templates).
+
 ## Quick start
 
 ```bash

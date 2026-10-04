@@ -166,9 +166,15 @@ NOTABLE: `opencode.json` is gitignored (local OpenCode config). `models/*` and `
 | `inference-vllm` | `inference-vllm` | `alternate-inference` | `src/inference-vllm/Dockerfile` — **incomplete, do not use** |
 | `inference` | `llama-inference` | `stack`, `inference` | `ghcr.io/ggml-org/llama.cpp:server-cuda12-b9538` — **only production-ready backend** |
 | `api` | `llama-api` | `stack` | `src/services/api/Dockerfile` |
-| `opencode` | `opencode` | `tools` | `src/opencode-stack/Dockerfile` — mounts `${PWD}:/workspace` |
+| `opencode` | `opencode` | `tools`, `stack` | `src/opencode-stack/Dockerfile` — mounts `${PWD}:/workspace` |
 
-**Networks:** `internal` (bridge) — shared by `inference`, `api`, and `opencode`. `inference-vllm` is NOT on this network (incomplete — cannot communicate with the API).
+**Agent compose files:** `docker-compose-<agent>.yml` and
+`docker-compose-<agent>-full-isolation.yml` exist for `claude`, `cursor`, `codex` and
+`grok-build`. Each repeats the `inference`, `inference-hf` and `api` services unchanged and
+defines only its own agent service, so a stack runs exactly one agent. See
+[agents.md](agents.md).
+
+**Networks:** `internal` (bridge) — shared by `inference`, `api`, and the agent service. `inference-vllm` is NOT on this network (incomplete — cannot communicate with the API).
 
 **Inference backends:** Only `inference` (llama.cpp) is production-ready. The `alternate-inference` profile exists as a placeholder for future backend swaps (vllm, ollama, etc.) but is not wired to the API — `INFERENCE_URL` always points to `http://inference:8080`. The `src/inference-vllm/`, `src/llama-stack/`, and `src/ollama-stack/` Dockerfiles are experimental stubs.
 
@@ -425,7 +431,17 @@ docker run -it --rm -v "$(pwd)":/workspace ghcr.io/anomalyco/opencode:2.0.22
 | Python | `3.12` |
 | Runner | `ubuntu-latest` |
 
-**lint job:** Installs `src/services/api/requirements.txt` + `dev-requirements.txt`. Runs `ruff check`, `ruff format --check .`, `mypy src/`.
+**lint job:** Installs `src/services/api/requirements.txt` + `dev-requirements.txt`. Runs, in
+order:
+
+1. `shellcheck -s sh start.sh restart.sh install.sh launch-*.sh scripts/*.sh`
+2. `./scripts/check-template-sync.sh`
+3. `./scripts/check-entrypoint-sync.sh`
+4. `ruff check`, `ruff format --check .`, `mypy src/`
+
+Steps 1–3 need no Python and run before the install, so a shell or duplication failure is
+reported in seconds. NOTE: a PR that modifies `.github/workflows/**` is held by GitHub for
+maintainer approval before any job runs, and shows as `action_required` with no jobs.
 
 **test job:** Installs only `src/services/api/requirements.txt`. Runs `pytest -v`.
 
@@ -484,3 +500,168 @@ Loaded by `opencode.json` as an agent instruction. Always applied. Enforces:
 - Keep merged branches
 - Annotated SemVer tags
 - Sync-git workflow
+
+---
+
+## `docker-compose-<agent>.yml` — Per-agent orchestration
+
+One pair of files per agent (`claude`, `cursor`, `codex`, `grok-build`), in a local and a
+`-full-isolation` variant. Each repeats `inference`, `inference-hf` and `api` unchanged and
+defines only its own agent service, so one stack runs exactly one agent.
+
+**Service naming:** the service key, `container_name`, runtime user and volumes all carry the
+agent name, so two agents can never collide on a container name.
+
+| Setting | Value |
+|---------|-------|
+| Service / container | `<agent>` (`<agent>_privileged` in the full-isolation file) |
+| Profiles | `tools`, `stack` — plus `stack_privileged` for the privileged service |
+| Build | `src/<agent>-stack/Dockerfile`, or `Dockerfile_privileged` |
+| User | `<agent>` (root for the privileged service) |
+| `stdin_open` / `tty` | `true` / `true` — interactive sessions |
+| Network | `internal`, `depends_on: api` |
+| Workspace | `${PWD}` bind at `/workspace` (compose reads `PWD` from the launcher) |
+| SSH | `~/.ssh` bind at `$HOME/.ssh:ro` |
+
+**Per-agent volumes.** Five named volumes per agent, all created by Docker:
+
+| Volume | Mount |
+|--------|-------|
+| `<agent>_config` | `$HOME/.config/<agent-dir>` |
+| `<agent>_data` | `$HOME/.local/share/<agent-dir>` |
+| `<agent>_state` | `$HOME/.local/state/<agent-dir>` |
+| `<agent>_cache` | `$HOME/.cache/<agent-dir>` |
+| `<agent>_home` | `$HOME/.<agent-dir>` — credentials, which the XDG mounts miss |
+
+`<agent-dir>` is the agent's own directory: `claude`, `cursor-agent`, `codex`, `grok`.
+`<agent>_home` must be a named volume, never a bind mount — Docker would read the container
+path on the left of the colon as a *host* path, and the mount fails.
+
+Environment on the agent service:
+
+| Variable | Value |
+|----------|-------|
+| `XDG_CONFIG_HOME` | `$HOME/.config` |
+| `XDG_DATA_HOME` | `$HOME/.data` |
+| `XDG_STATE_HOME` | `$HOME/.state` |
+| `XDG_CACHE_HOME` | `$HOME/.cache` |
+| `GIT_SSH_COMMAND` | `ssh -o StrictHostKeyChecking=accept-new` |
+| `SQLITE_DISABLE_DIRSYNC` | `1` |
+
+`model_data`, `model_hf_data` and `training_data` are **not** per-agent: they belong to the
+shared inference stack.
+
+**Full-isolation files** add `<agent>_privileged` (profile `stack_privileged`,
+`privileged: true`, `user: root`, plus a `docker.sock` bind) and move the five volumes to
+bind mounts on `/Volumes/${DISK_NAME:-EXT1TB}/docker_data/${NAME_SUFFIX:-common}_<volume>`.
+The launcher creates those host paths first — Docker cannot create a missing bind target.
+
+---
+
+## `src/<agent>-stack/Dockerfile` — Agent images
+
+One `Dockerfile` plus one `Dockerfile_privileged` per agent. The privileged variant is
+identical except for `USER root`.
+
+| Agent | Base | Binary | Version pin | User |
+|-------|------|--------|-------------|------|
+| claude | `alpine` | `claude` | `CLAUDE_CODE_VERSION=2.1.289` | `claude` |
+| cursor | `debian:bookworm` | `cursor-agent` | `CURSOR_VERSION=2026.10.01` | `cursor` |
+| codex | `alpine` | `codex` | `CODEX_VERSION=0.160.0` | `codex` |
+| grok | `alpine` | `grok` | `GROK_VERSION=1.0.46` | `grok` |
+
+Each image sets `ENV AGENT_BIN=<binary>`, creates a user named for the agent with home
+`/home/<agent>`, creates the XDG directories with matching ownership so volumes mount when
+empty, and installs the same ~40-package dev toolchain as the opencode stack (rust, go,
+deno, bun, chromium, pre-commit, ruff, nodejs, `gh`, `glab`, shellcheck, docker).
+
+**Cursor is on Debian because it must be:** its installer bundles a glibc-linked Node that
+fails on musl with `cannot execute: required file not found`. The other three installers are
+self-contained and work on Alpine.
+
+**Installers write to `/root` (mode 700)**, unreadable by the runtime user, so each binary is
+copied to `/opt/agent/<binary>`. Codex and Cursor load sibling files from their own directory
+at runtime, so the whole release tree is copied, not just the binary.
+
+---
+
+## `src/common/entrypoint.sh` — Shared container entrypoint
+
+Used by the claude, codex, cursor and grok stacks. Sets up `.profile`, `gh auth` and git
+identity, then execs the agent:
+
+```sh
+exec "${AGENT_BIN:-opencode}" "$@"
+```
+
+Interactive prompts (`gh auth`, git config) skip when not a TTY, and configured steps are
+skipped on re-entry, so the script is idempotent. SSH config is copied to a restricted temp
+directory to strip macOS-only directives, because `~/.ssh` is a read-only bind mount.
+
+`src/opencode-stack/entrypoint.sh` is the pre-split copy still used by the opencode image, so
+that stack is unaffected. The two differ only in the header and that final line, and
+`AGENT_BIN` is unset in the opencode stack, so both run the same command. This duplication is
+temporary: apply logic changes to both, or run
+`./scripts/check-entrypoint-sync.sh`.
+
+---
+
+## `templates/<agent>-default/` — Project bootstrap templates
+
+`start.sh` offers to create any file the chosen agent's template folder ships that is missing
+from the working directory. The file list is read from the folder with `find`, so adding a
+file to a template is enough to have it offered — there is no table to update.
+
+Each agent has its own folder because the instruction file and its path differ, and because
+agents only auto-load paths they recognise:
+
+| Template | Instructions | Git workflow |
+|----------|--------------|--------------|
+| `opencode-default` | `AGENTS.md`, `opencode.json` | `.opencode/instructions/git-workflow.md` |
+| `claude-default` | `CLAUDE.md` | `.claude/rules/git-workflow.md` |
+| `cursor-default` | `AGENTS.md` | `.cursor/rules/git-workflow.mdc` (`alwaysApply: true`) |
+| `codex-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) |
+| `grok-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) |
+
+Every template also ships `docs/git-workflow.md`, `.pre-commit-config.yaml`,
+`dev-requirements.txt` and `.github/workflows/*.yml`.
+
+A plain `.md` in `.cursor/rules` is ignored by Cursor — the extension must be `.mdc` with
+frontmatter. Codex and Grok have no rules directory, so their templates reference
+`docs/git-workflow.md` instead of pretending it is auto-loaded.
+
+---
+
+## `scripts/` — Repository consistency checks
+
+| Script | Fails when |
+|--------|------------|
+| `check-template-sync.sh` | A file shared by all five templates differs between them |
+| `check-entrypoint-sync.sh` | The two entrypoint copies differ beyond the header and exec line |
+
+Both run as pre-commit hooks (`template-sync`, `entrypoint-sync`) and as CI lint steps. They
+exist because the duplicated files would otherwise drift silently — a fix applied to one copy
+only, leaving opencode behaving differently from every other stack with no error anywhere.
+
+---
+
+## `start.sh` — Agent selection
+
+| Setting | Value |
+|---------|-------|
+| `AGENT_NAMES` | `opencode, claude, cursor, codex, grok` |
+| `DEFAULT_AGENT` | `opencode` — used in every mode when `--agent` is absent |
+| `--agent` position | Must be the **first** argument |
+
+`--agent` selects the compose file, the launcher and the template folder at once, so a
+misplaced `--agent` is an error rather than a silent fallback:
+
+```bash
+code-inference --agent claude --fresh    # ok
+code-inference --fresh --agent claude    # Error: --agent must be the first argument.
+```
+
+Four lookup functions hold the single source of truth for agent names:
+`agent_template_dir`, `agent_compose`, `agent_launcher` and `agent_fresh_launcher`. Adding an
+agent means adding it to all four plus `AGENT_NAMES`. `--restart` receives the compose
+basename via `restart.sh --compose`, so `restart.sh` needs no agent mapping of its own.

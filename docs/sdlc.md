@@ -50,7 +50,8 @@ make build && make up
 
 ## Code quality gates
 
-Runs in order: `lint` → `typecheck` → `test`. All enforced in CI and available locally.
+Runs in order: `shellcheck` → `sync checks` → `lint` → `typecheck` → `test`. All enforced in CI
+and available locally.
 
 ### 1. Pre-commit hooks (local only)
 
@@ -59,9 +60,32 @@ pip install -r dev-requirements.txt && pre-commit install
 pre-commit run --all-files
 ```
 
-Hooks: trailing-whitespace, end-of-file-fixer, check-yaml, check-added-large-files (500 KB max), ruff (with `--fix`), ruff-format, mypy.
+Hooks: template-sync, entrypoint-sync (local), trailing-whitespace, end-of-file-fixer,
+check-yaml, check-added-large-files (500 KB max), ruff (with `--fix`), ruff-format, mypy.
 
-### 2. Lint (ruff)
+### 2. Shellcheck (all shell scripts)
+
+```
+shellcheck -s sh start.sh restart.sh install.sh launch-*.sh scripts/*.sh
+```
+
+The launcher scripts are the user-facing entry points and are pure shell, so this is the only
+thing that checks them. `install.sh` originally had a `for cmd in docker` single-item loop,
+which this caught.
+
+### 3. Duplication guards
+
+```
+./scripts/check-template-sync.sh    # shared template files identical across all 5 agents
+./scripts/check-entrypoint-sync.sh  # the two entrypoint copies agree
+```
+
+Both are pre-commit hooks and CI lint steps. They exist because the repository intentionally
+carries duplicated files — five per-agent templates sharing seven files, and two copies of the
+container entrypoint — and duplication without a check drifts silently. If one reports drift,
+copy the correct version to the others rather than editing the script.
+
+### 4. Lint (ruff)
 
 ```
 ruff check .           # lint
@@ -70,7 +94,7 @@ ruff format --check .  # formatting
 
 Config in `pyproject.toml`: line-length 100, target py312, single quotes, select `E,F,I,N,W,UP,SIM`.
 
-### 3. Typecheck (mypy)
+### 5. Typecheck (mypy)
 
 ```
 mypy src/
@@ -78,7 +102,7 @@ mypy src/
 
 Runs with `--no-strict-optional --ignore-missing-imports`. Additional deps (pydantic, httpx, fastapi, slowapi, pydantic-settings) declared in `.pre-commit-config.yaml` for the pre-commit mypy hook.
 
-### 4. Test
+### 6. Test
 
 ```
 make test
@@ -116,10 +140,18 @@ Triggers: push or PR to `main` or `development`.
 
 #### Jobs
 
-1. **lint** — Installs `src/services/api/requirements.txt` + `dev-requirements.txt`. Runs ruff check, ruff format check, mypy.
+1. **lint** — shellcheck, then both sync guards, then installs `src/services/api/requirements.txt` + `dev-requirements.txt` and runs ruff check, ruff format check, mypy.
 2. **test** — Installs only `src/services/api/requirements.txt`. Runs `pytest -v`.
 
 Both jobs run on `ubuntu-latest` with Python 3.12.
+
+NOTE: a PR that modifies `.github/workflows/**` is held for maintainer approval by GitHub
+before any job runs. It shows as `action_required` with zero jobs, which is a pending approval
+rather than a pass — approve it from the Actions tab or with
+`gh api -X POST repos/<owner>/<repo>/actions/runs/<id>/approve`.
+
+NOTE: `tests/api/test_postprocessing.py` has 6 pre-existing failures unrelated to any launcher
+work. Confirm the count against `origin/development` before blaming a change.
 
 ### `open-pr-to-development.yml`
 
@@ -149,6 +181,12 @@ All Dockerfiles use the **project root** as build context (set in `docker-compos
 | `llama-stack` | `src/llama-stack/Dockerfile` | `python:3` | Meta llama-model CLI for weight downloads. |
 | `ollama-stack` | `src/ollama-stack/Dockerfile` | `ubuntu` | Ollama CLI alternative. |
 | `opencode` | `src/opencode-stack/Dockerfile` | `ghcr.io/anomalyco/opencode` | OpenCode AI CLI. Mounts `${PWD}:/workspace` for directory-agnostic operation. |
+| `claude` | `src/claude-stack/Dockerfile` | `alpine` | Claude Code CLI. |
+| `cursor` | `src/cursor-stack/Dockerfile` | `debian:bookworm` | Cursor CLI. Debian, not Alpine: its bundled Node is glibc-linked. |
+| `codex` | `src/codex-stack/Dockerfile` | `alpine` | Codex CLI. |
+| `grok` | `src/grok-stack/Dockerfile` | `alpine` | Grok Build CLI. |
+
+Each agent stack also has a `Dockerfile_privileged` — identical except `USER root`.
 
 ### Build
 
@@ -158,6 +196,12 @@ make build
 
 Builds `stack` profile (api + inference) and `tools` profile (llama-stack, opencode). Does NOT build `alternate-inference` (vLLM) or `ollama-stack`.
 
+Agent images build from their own compose file:
+
+```
+docker compose -f docker-compose-claude.yml --profile stack build claude
+```
+
 ### `.dockerignore`
 
 Excludes `__pycache__`, `.pytest_cache`, `*.pyc`, `.git`, `docs/`. Cannot COPY docs into any image.
@@ -166,15 +210,20 @@ Excludes `__pycache__`, `.pytest_cache`, `*.pyc`, `.git`, `docs/`. Cannot COPY d
 
 | Profile | Services | Use case |
 |---------|----------|----------|
-| `stack` | inference + api | Default dev stack |
-| `tools` | llama-stack, opencode | CLI tools: weight downloads, AI coding assistant |
+| `stack` | inference + api + agent | Default dev stack |
+| `tools` | llama-stack + agent | CLI tools: weight downloads, AI coding assistant |
 | `alternate-inference` | inference-vllm | Swap llama.cpp for vLLM |
+| `stack_privileged` | inference + api + `<agent>_privileged` | Agent with nested-Docker capability (full-isolation files only) |
+
+Profiles are per compose file: `claude` exists in `docker-compose-claude.yml`, not in
+`docker-compose.yml`. `stack_privileged` appears only in the `-full-isolation` files.
 
 Usage:
 ```
 docker compose --profile stack up
 docker compose --profile tools run --rm llama-stack llama-model list
-docker compose --profile tools run --rm opencode
+docker compose --profile stack run --rm opencode
+docker compose -f docker-compose-claude.yml --profile stack run --rm claude
 docker compose --profile alternate-inference up
 ```
 
@@ -184,16 +233,30 @@ docker compose --profile alternate-inference up
 |--------|------|-------|--------|
 | `model_data` | bind (`./models/`) | `/models` on inference | read-only for inference |
 | `training_data` | named volume | `/training` on api | read-write |
+| `model_hf_data` | named volume | `/root/.cache/huggingface` | read-write |
+| `<agent>_config` / `_data` / `_state` / `_cache` / `_home` | named volume | the agent's XDG dirs and dotdir | read-write |
 
-`model_data` is a bind mount — it survives `docker compose down -v`. `training_data` is a named volume — it is destroyed by `down -v`.
+`model_data` is a bind mount — it survives `docker compose down -v`. The rest are named
+volumes — destroyed by `down -v`, which is why `restart.sh` runs `down` **without** `-v`.
+
+The five per-agent volumes exist so credentials, session history and settings never collide
+between agents; `model_data`, `model_hf_data` and `training_data` belong to the shared
+inference stack and are not per-agent. See [agents.md](agents.md#state-is-per-agent).
 
 ## Helper scripts
 
 | Script | Action | Destructive? |
 |--------|--------|-------------|
 | `restart.sh` | `down` then `up --force-recreate --build -d` | No — volumes preserved (auth, sessions, HF cache) |
-| `launch-opencode.sh` | `docker compose --profile stack run --rm opencode` | No |
+| `launch-<agent>.sh` | `docker compose --profile stack run --rm <agent>` | No |
+| `launch-fresh-<agent>.sh` | Builds the agent image if absent, then `docker run` standalone | No |
+| `start.sh` | Dispatches on `--agent` and mode to the launcher above | No |
+| `scripts/check-template-sync.sh` | Fails if shared template files differ between agents | No |
+| `scripts/check-entrypoint-sync.sh` | Fails if the two entrypoint copies drifted | No |
 | `Makefile` | build, test, up aliases | No |
+
+`restart.sh` takes the agent's compose basename via an internal `--compose` flag, passed by
+`start.sh`, so `--restart --agent cursor` restarts the Cursor stack.
 
 ## Deployment / operations
 

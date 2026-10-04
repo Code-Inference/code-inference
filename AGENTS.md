@@ -2,7 +2,7 @@
 
 Local inference stack. FastAPI gateway proxies to llama.cpp; all inference stays on-host. PII masking (Chilean RUT), char-level truncation, intent tagging.
 
-Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode.json` instruction). Comprehensive config reference: `docs/settings.md`.
+Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode.json` instruction). Comprehensive config reference: `docs/settings.md`. Multi-agent reference: `docs/agents.md`.
 
 ## Docker commands
 
@@ -27,8 +27,9 @@ Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode
 ## Architecture
 
 - **Entrypoint:** `src/services/api/app/main.py:22` — FastAPI app. Routes: `GET /health`, `GET /health/ready` (pings inference `/v1/models`), `POST /v1/chat/completions` (proxies after prompt processing).
-- **Request flow:** opencode → api (RUT mask, truncate, tag) → inference (llama.cpp). Three-hop chain on `internal` network.
-- **Compose profiles:** `stack` (inference+api, default), `tools` (opencode CLI), `alternate-inference` (vLLM, **not wired** to `internal` network).
+- **Request flow:** agent → api (RUT mask, truncate, tag) → inference (llama.cpp). Three-hop chain on `internal` network.
+- **Agents:** opencode (default), claude, cursor, codex, grok — selected by `code-inference --agent NAME` (`--agent` must be the **first** argument). Each has its own compose file, launcher, stack dir, user/home and volumes. See `docs/agents.md`.
+- **Compose profiles:** `stack` (inference+api+agent, default), `tools` (agent CLI), `alternate-inference` (vLLM, **not wired** to `internal` network), `stack_privileged` (full-isolation files only).
 - **Only inference (llama.cpp) is production-ready.** Other backends (vllm, ollama) are experimental stubs.
 - **Prompt processing:** `src/services/api/app/prompt.py` — RUT masking via regex `_RUT_RE`, char-level truncation (last user message only, appends `…[truncated]`), intent tagging.
 - **No raw prompts logged** — only `request_id`, `tags`, `truncated`, `pii_masked` flags. Response headers: `X-Request-Id`, `X-Prompt-Truncated`, `X-Prompt-Pii-Masked`.
