@@ -169,13 +169,17 @@ fi
 
 # Verify a checkpoint is present before booting, so a missing model fails here
 # with a clear message instead of inside the inference container.
-if [ ! -d "./models" ] || [ -z "$(ls -A ./models 2>/dev/null)" ]; then
-  echo "Error: ./models/ is empty. Place a GGUF checkpoint there first." >&2
-  echo "       See docs/models/README.md." >&2
+#
+# Check ORIG_PWD, not the cwd: this script cd's to SCRIPT_DIR so compose
+# commands resolve against the install, but models live in the project.
+# launch-opencode.sh passes PWD="$ORIG_PWD" to compose for the same reason.
+if [ ! -d "$ORIG_PWD/models" ] || [ -z "$(ls -A "$ORIG_PWD/models" 2>/dev/null)" ]; then
+  echo "Error: no GGUF checkpoint found in $ORIG_PWD/models." >&2
+  echo "       Place one there first. See docs/models/README.md." >&2
   exit 1
 fi
-echo "Models found:"
-ls -lh ./models/
+echo "Models found in $ORIG_PWD/models:"
+ls -lh "$ORIG_PWD/models/"
 
 # ── Restart ──────────────────────────────────────────────────────────────────
 PURGE_FLAG=""
