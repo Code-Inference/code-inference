@@ -191,7 +191,7 @@ docker compose --profile alternate-inference up
 
 | Script | Action | Destructive? |
 |--------|--------|-------------|
-| `restart.sh` | `down -v` then `up --force-recreate --build -d` | Yes — wipes training_data volume |
+| `restart.sh` | `down` then `up --force-recreate --build -d` | No — volumes preserved (auth, sessions, HF cache) |
 | `launch-opencode.sh` | `docker compose --profile tools run --rm opencode` | No |
 | `Makefile` | build, test, up aliases | No |
 

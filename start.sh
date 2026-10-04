@@ -75,17 +75,27 @@ case "${1:-}" in
     shift
     exec "$SCRIPT_DIR/launch-fresh-opencode.sh" "$@"
     ;;
+  --restart)
+    shift
+    exec "$SCRIPT_DIR/restart.sh" "$@"
+    ;;
   --full-isolation)
     shift
     exec "$SCRIPT_DIR/launch-opencode.sh" --full-isolation "$@"
     ;;
   --help|-h)
-    echo "Usage: code-inference [--fresh|--full-isolation] [-- opencode-args]"
+    echo "Usage: code-inference [--fresh|--restart|--full-isolation] [--privileged] [--disk-name NAME] [-- opencode-args]"
     echo ""
     echo "Options:"
     echo "  --fresh              Run opencode standalone (no inference stack, persistent named volumes)"
+    echo "  --restart            Restart the inference stack (volumes preserved)"
+    echo "                       Accepts --full-isolation, --disk-name, --privileged, --purge"
     echo "  --full-isolation     Run opencode via compose with scoped project name (inference, ephemeral)"
     echo "    --disk-name NAME   Use external disk for volumes (default: EXT1TB)"
+    echo "  --privileged         Run opencode with docker.sock + privileged + root, so it"
+    echo "                       can spawn nested containers. The container is the sandbox"
+    echo "                       boundary; the host stays protected. Requires"
+    echo "                       --full-isolation and --disk-name. Trusted workspaces only."
     ;;
   *)
     exec "$SCRIPT_DIR/launch-opencode.sh" "$@"
