@@ -402,8 +402,14 @@ Usage:
 # From this repo (uses launch-opencode.sh wrapper):
 ./launch-opencode.sh
 
+# Scoped to this project, state on an external disk:
+./launch-opencode.sh --full-isolation --disk-name EXT1TB
+
+# Sandboxed with nested-Docker capability (requires both flags):
+./launch-opencode.sh --full-isolation --privileged --disk-name EXT1TB
+
 # From any directory with this compose file available:
-docker compose --profile tools run --rm opencode
+docker compose --profile stack run --rm opencode
 
 # Without compose file (no persistent volumes):
 docker run -it --rm -v "$(pwd)":/workspace ghcr.io/anomalyco/opencode:2.0.22

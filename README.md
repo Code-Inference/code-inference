@@ -19,16 +19,23 @@ From any project directory:
 ```bash
 code-inference               # launch opencode with the inference stack
 code-inference --fresh       # standalone opencode (no inference, persistent volumes)
+code-inference --restart     # restart the inference stack (volumes preserved)
 code-inference --full-isolation  # compose with scoped project name (inference, ephemeral)
+code-inference --full-isolation --disk-name EXT1TB  # per-project volumes on an external disk
 code-inference --help        # show usage
 ```
+
+`--full-isolation --privileged --disk-name <disk>` additionally runs opencode with `docker.sock`
+and `privileged: true`, so it can spawn nested containers — the container becomes the sandbox
+boundary instead of running opencode directly on your host. See
+[docs/opencode-stack.md](docs/opencode-stack.md#--privileged-running-opencode-inside-a-sandbox).
 
 ## How it works
 
 `code-inference` is a thin wrapper around `docker compose` from this repo. It:
 
 1. Clones the repo to `~/.code-inference/` (one-time install)
-2. On each run, calls `docker compose --profile tools run --rm opencode` from your project directory
+2. On each run, calls `docker compose --profile stack run --rm opencode` from your project directory
 3. Mounts your project at `/workspace` inside the opencode container
 4. The local inference stack (`llama.cpp` + API) runs alongside via the `stack` profile
 
