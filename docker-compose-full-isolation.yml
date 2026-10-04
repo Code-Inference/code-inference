@@ -26,6 +26,7 @@ services:
     container_name: "llama-inference-${NAME_SUFFIX:-common}"
     profiles:
       - stack
+      - stack_privileged
       - inference
     image: ghcr.io/ggml-org/llama.cpp:server
     restart: unless-stopped
@@ -53,6 +54,7 @@ services:
     container_name: "llama-hf-inference-${NAME_SUFFIX:-common}"
     profiles:
       - stack
+      - stack_privileged
       - inference
     image: ghcr.io/ggml-org/llama.cpp:server
     restart: unless-stopped
@@ -80,6 +82,7 @@ services:
     container_name: "llama-api-${NAME_SUFFIX:-common}"
     profiles:
       - stack
+      - stack_privileged
     build:
       context: .
       dockerfile: src/services/api/Dockerfile
@@ -127,6 +130,45 @@ services:
       - opencode_data:/home/opencode/.local/share/opencode
       - opencode_state:/home/opencode/.local/state/opencode
       - opencode_cache:/home/opencode/.cache/opencode
+
+  # Grants host-equivalent access (docker.sock + privileged: true + root).
+  # The container is the sandbox boundary; the host is what this protects.
+  # Reachable only via:
+  #   launch-opencode.sh --full-isolation --privileged --disk-name <disk>
+  # The guard in that script requires both flags, and opencode_privileged
+  # exists in no other compose file, so an isolated stack is structural
+  # rather than merely conventional.
+  opencode_privileged:
+    container_name: opencode_privileged
+    privileged: true
+    profiles:
+      - stack_privileged
+    build:
+      context: .
+      dockerfile: src/opencode-stack/Dockerfile_privileged
+    stdin_open: true   # -i (interactive)
+    tty: true           # -t (pseudo-TTY)
+    user: root
+    environment:
+      - XDG_CONFIG_HOME=/home/opencode/.config
+      - XDG_DATA_HOME=/home/opencode/.local/share
+      - XDG_STATE_HOME=/home/opencode/.local/state
+      - XDG_CACHE_HOME=/home/opencode/.cache
+      - GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new
+      - SQLITE_DISABLE_DIRSYNC=1
+    networks:
+      - internal
+    depends_on:
+      - api
+    volumes:
+      - workspace:/workspace:rw
+      - ~/.ssh:/home/opencode/.ssh:ro
+      - opencode_config:/home/opencode/.config/opencode
+      - opencode_data:/home/opencode/.local/share/opencode
+      - opencode_state:/home/opencode/.local/state/opencode
+      - opencode_cache:/home/opencode/.cache/opencode
+      - /var/run/docker.sock:/var/run/docker.sock
+
 
 volumes:
   workspace:
