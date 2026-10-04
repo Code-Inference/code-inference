@@ -1,0 +1,163 @@
+# code-inference AI - Claude Code stack (local volumes)
+#
+# inference, inference-hf and api are identical to the opencode stack; only the
+# agent service and its volumes differ. The service and volume names both carry
+# the agent name, so two agents can never collide on container names, and the
+# claude_config / _data / _state / _cache volumes keep credentials, session
+# history and settings separate.
+#
+# Profiles:
+#   stack             inference + api + Claude Code  (default)
+#   stack_privileged  adds the privileged Claude Code service (host-equivalent access)
+# code-inference AI — local stack (see docs/architecture.md)
+# Place a GGUF checkpoint in the model_data volume before starting inference (docs/models/README.md).
+#
+# Profiles:
+#   stack  — inference + api (default dev stack): docker compose --profile stack up
+#   tools  — llama-stack, opencode (CLI tools): docker compose --profile tools run --rm …
+
+services:
+  inference-vllm:
+    container_name: inference-vllm
+    profiles:
+      - alternate-inference
+    build:
+      context: .
+      dockerfile: src/inference-vllm/Dockerfile
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1 # Change to 1 if you only want to allocate a single GPU
+              capabilities: [gpu]
+
+
+  inference:
+    container_name: "llama-inference-${NAME_SUFFIX:-common}"
+    profiles:
+      - stack
+      - inference
+    image: ghcr.io/ggml-org/llama.cpp:server
+    restart: unless-stopped
+    volumes:
+      - model_data:/models:ro
+    command:
+      - "-m"
+      - "/models/${MODEL_FILENAME:-model.gguf}"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8080"
+      - "--ctx-size"
+      - "${CONTEXT_SIZE:-262144}"
+      - "--threads"
+      - "${THREADS:-6}"
+      - "--jinja"
+    ports:
+      - "8080:8080"
+    networks:
+      - internal
+
+  inference-hf:
+    container_name: "llama-hf-inference-${NAME_SUFFIX:-common}"
+    profiles:
+      - stack
+      - inference
+    image: ghcr.io/ggml-org/llama.cpp:server
+    restart: unless-stopped
+    volumes:
+      - model_hf_data:/root/.cache/huggingface:rw
+    command:
+      - "-hf"
+      - "${MODEL_HF:-ggml-org/Qwen3.5-0.8B-GGUF:Q4_0}"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8081"
+      - "--ctx-size"
+      - "${CONTEXT_SIZE:-262144}"
+      - "--threads"
+      - "${THREADS:-6}"
+      - "--jinja"
+    ports:
+      - "8081:8081"
+    networks:
+      - internal
+
+  api:
+    container_name: "llama-api-${NAME_SUFFIX:-common}"
+    profiles:
+      - stack
+    build:
+      context: .
+      dockerfile: src/services/api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      INFERENCE_URL: ${INFERENCE_URL:-http://inference:8080}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-30}
+      MAX_PROMPT_CHARS: ${MAX_PROMPT_CHARS:-8000}
+    depends_on:
+      - inference
+      - inference-hf
+    networks:
+      - internal
+    volumes:
+      - training_data:/training:rw
+
+  claude:
+    container_name: claude
+    profiles:
+      - tools
+      - stack
+    build:
+      context: .
+      dockerfile: src/claude-stack/Dockerfile
+    stdin_open: true   # -i (interactive)
+    tty: true           # -t (pseudo-TTY)
+    user: claude
+    environment:
+      - XDG_CONFIG_HOME=/home/claude/.config
+      - XDG_DATA_HOME=/home/claude/.data
+      - XDG_STATE_HOME=/home/claude/.state
+      - XDG_CACHE_HOME=/home/claude/.cache
+      - GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new
+      - SQLITE_DISABLE_DIRSYNC=1
+    networks:
+      - internal
+    depends_on:
+      - api
+    volumes:
+      - workspace:/workspace:rw
+      - ~/.ssh:/home/claude/.ssh:ro
+      - claude_config:/home/claude/.config/claude
+      - claude_data:/home/claude/.local/share/claude
+      - claude_state:/home/claude/.local/state/claude
+      - claude_cache:/home/claude/.cache/claude
+      - claude_home:/home/claude/.claude
+volumes:
+  claude_home:
+  workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind,delegated
+      device: "${PWD}"
+
+  model_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${PWD}/models"
+  model_hf_data:
+  training_data:
+  claude_config:
+  claude_data:
+  claude_state:
+  claude_cache:
+
+networks:
+  internal:

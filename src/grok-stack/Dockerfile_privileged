@@ -1,0 +1,116 @@
+# syntax=docker/dockerfile:1
+# grok runtime, privileged variant.
+#
+# Identical to the sibling Dockerfile except that it runs as root instead of the
+# agent user. It grants host-equivalent access (docker.sock + privileged: true +
+# root), so the container is the sandbox boundary rather than the host.
+# Reached only via --full-isolation --privileged --disk-name <disk>, and defined
+# only in the *-full-isolation compose file.
+
+ARG ALPINE_VERSION=3.20
+FROM alpine:${ALPINE_VERSION}
+
+ARG GROK_VERSION=1.0.46
+ENV GROK_VERSION=${GROK_VERSION}
+
+# Env vars are set before the long apk layer so they survive as image config.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Git + SSH are needed by the agent's git-aware features (push, pull).
+# Dev dependencies for linting/formatting (pre-commit, ruff, mypy).
+RUN apk --update --no-cache add \
+    bash \
+    git \
+    openssh \
+    python3 \
+    py3-pip \
+    pre-commit \
+    xclip \
+    ruff \
+    nodejs \
+    npm \
+    deno \
+    github-cli \
+    git-lfs \
+    glab \
+    go \
+    curl \
+    ca-certificates \
+    gnupg \
+    docker-cli \
+    docker-cli-compose \
+    # --- Playwright System Dependencies ---
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ttf-freefont \
+    font-noto-emoji \
+    # --- Rust Dependencies ---
+    rust \
+    cargo \
+    build-base \
+    shellcheck \
+    make \
+    gcc \
+    musl-dev \
+    linux-headers \
+    cmake
+
+# Copy dev requirements before installing so the pip layer caches independently
+# of the rest of the toolchain.
+COPY dev-requirements.txt /tmp/dev-requirements.txt
+
+RUN git init && \
+    pip install --no-cache-dir --break-system-packages -r /tmp/dev-requirements.txt && \
+    pre-commit install
+
+RUN apk add --no-cache libstdc++ libgcc unzip && \
+    curl -fsSL https://bun.sh/install | bash && \
+    mv /root/.bun/bin/bun /usr/local/bin/
+
+# Install the Grok Build CLI.
+#
+# The installer places `grok` and `agent` in $HOME/.grok/bin as symlinks to
+# ../downloads/grok-linux-x86_64. Those relative targets break if the bin
+# directory is copied elsewhere, so the resolved binary is installed to
+# /opt/agent instead. Runtime config and credentials live in $HOME/.grok
+# (auth.json, config.toml), which is the mounted volume.
+RUN curl -fsSL https://x.ai/cli/install.sh | bash -s "$GROK_VERSION" && \
+    mkdir -p /opt/agent && \
+    cp "$(readlink -f /root/.grok/bin/grok)" /opt/agent/grok && \
+    chmod 0755 /opt/agent/grok && \
+    ln -sf /opt/agent/grok /usr/local/bin/grok && \
+    ln -sf /opt/agent/grok /usr/local/bin/agent && \
+    grok --version
+
+# Non-root user, named for the agent. Each stack gets its own user and home so
+# two agents never share credentials, session history, or settings. This mirrors
+# the agent-prefixed volume names (grok_config, grok_data, ...) and keeps
+# the opencode stack's existing /home/opencode and volumes untouched.
+RUN addgroup -S grok && adduser -S -h /home/grok -G grok grok
+
+# XDG dirs that volumes mount over, so ownership is correct even on first run.
+# ~/.grok holds Grok Build credentials (auth.json) and config.toml.
+RUN mkdir -p \
+    /home/grok/.config/grok \
+    /home/grok/.local/share/grok \
+    /home/grok/.local/state/grok \
+    /home/grok/.cache/grok \
+    /home/grok/.grok \
+    && chown -R grok:grok /home/grok
+
+# Shared bootstrap: profile, gh auth, git identity, then exec the agent.
+COPY src/common/entrypoint.sh /home/grok/entrypoint.sh
+RUN chown grok:grok /home/grok/entrypoint.sh && \
+    chmod +x /home/grok/entrypoint.sh
+
+USER grok
+ENV AGENT_BIN=grok
+# Privileged mode, using root. Reached only via
+#   launch-grok.sh --full-isolation --privileged --disk-name <disk>
+USER root
+WORKDIR /workspace
+
+ENTRYPOINT ["/home/grok/entrypoint.sh"]

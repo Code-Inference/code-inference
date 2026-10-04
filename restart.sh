@@ -40,6 +40,8 @@ Options:
                        training data, and the HuggingFace cache (~540MB
                        re-download)
   -y, --yes            Assume yes; skip the --purge confirmation
+  --compose BASE       Internal: compose file basename, set by start.sh from
+                       --agent, so this script needs no agent mapping
   -h, --help           Show this help
 
 Volumes are preserved unless --purge is given.
@@ -54,7 +56,7 @@ USAGE
 # ── Flag parsing ─────────────────────────────────────────────────────────────
 # Mirrors launch-opencode.sh deliberately. That script is on the hot path for
 # every launch and is left untouched.
-DOCKER_COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+DOCKER_COMPOSE_BASE="docker-compose"
 DISK_NAME=""
 FULL_ISOLATION=0
 PRIVILEGED=0
@@ -63,6 +65,16 @@ ASSUME_YES=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --compose)
+      # Set by start.sh from --agent, so the agent -> compose mapping lives in
+      # one place. Without it this restarts the default (opencode) stack.
+      if [ -z "${2:-}" ]; then
+        echo "Error: --compose requires a value." >&2
+        exit 2
+      fi
+      DOCKER_COMPOSE_BASE="$2"
+      shift 2
+      ;;
     --full-isolation)
       FULL_ISOLATION=1
       shift
@@ -115,7 +127,14 @@ if [ "$PRIVILEGED" -eq 1 ]; then
 fi
 
 if [ "$FULL_ISOLATION" -eq 1 ] && [ -n "$DISK_NAME" ]; then
-  DOCKER_COMPOSE_FILE="$SCRIPT_DIR/docker-compose-full-isolation.yml"
+  DOCKER_COMPOSE_FILE="$SCRIPT_DIR/${DOCKER_COMPOSE_BASE}-full-isolation.yml"
+else
+  DOCKER_COMPOSE_FILE="$SCRIPT_DIR/${DOCKER_COMPOSE_BASE}.yml"
+fi
+
+if [ ! -f "$DOCKER_COMPOSE_FILE" ]; then
+  echo "Error: compose file not found: $DOCKER_COMPOSE_FILE" >&2
+  exit 1
 fi
 
 if [ "$PRIVILEGED" -eq 1 ]; then
