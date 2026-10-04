@@ -8,8 +8,14 @@ OpenCode AI CLI as a Docker Compose service (`tools` profile). Runs from any dir
 # From this repo:
 ./launch-opencode.sh
 
+# Scoped to this project, state on an external disk:
+./launch-opencode.sh --full-isolation --disk-name EXT1TB
+
+# Sandboxed with nested-Docker capability (requires both flags above):
+./launch-opencode.sh --full-isolation --privileged --disk-name EXT1TB
+
 # From any directory with this compose file available:
-docker compose --profile tools run --rm opencode
+docker compose --profile stack run --rm opencode
 
 # Without the compose file (no persistent volumes):
 docker run -it --rm -v "$(pwd)":/workspace ghcr.io/anomalyco/opencode:2.0.22
@@ -107,19 +113,84 @@ These exist as a convenience for the standalone `launch-fresh-opencode.sh` scrip
 
 | Script | Mechanism | Volumes | Persistence |
 |--------|-----------|---------|-------------|
-| `launch-opencode.sh` | `docker compose --profile tools run --rm` | None (ephemeral) | ❌ Nothing saved |
-| `launch-opencode.sh --full-isolation` | `docker compose -p <dirname> --profile tools run --rm` | Scoped per-project volumes | ❌ Still none mounted |
+| `launch-opencode.sh` | `docker compose --profile stack run --rm` | `workspace` bind | ✅ Config, auth, cache persist |
+| `launch-opencode.sh --full-isolation` | `docker compose -p <dirname> -f docker-compose-full-isolation.yml` | Per-project bind mounts | ✅ Scoped per project |
+| `launch-opencode.sh --full-isolation --disk-name <disk>` | Same, volumes rooted on an external disk | Per-project, on `<disk>` | ✅ Scoped per project and per disk |
+| `launch-opencode.sh --full-isolation --privileged --disk-name <disk>` | Same, `opencode_privileged` service | Same | ✅ Plus nested Docker (see below) |
 | `launch-fresh-opencode.sh` | `docker run -it --rm -v $(pwd):/workspace` | Named volumes | ✅ Config, auth, cache persist |
 
 ### launch-opencode.sh
 
 ```sh
-docker compose $PROJECT_FLAG --profile tools run --rm --name "opencode-$NAME_SUFFIX" opencode
+docker compose -f "$COMPOSE_FILE" -p "$NAME_SUFFIX" --profile "$PROFILE_NAME" \
+  run --rm --name "opencode-$NAME_SUFFIX" --build --remove-orphans "$SERVICE_NAME"
 ```
 
-- No persistent volumes — each run is fresh.
 - `--name "opencode-<dirname>"` avoids container name collision across directories.
-- `--full-isolation` adds `-p <dirname>` scoping, which affects compose project name for volume/label scoping but has no practical effect since no volumes are mounted.
+- Launcher flags may be given in **any order** and combine freely. Parsing stops at the first
+  unrecognized argument, so `--` passes everything after it straight to opencode:
+  `code-inference -- --continue`.
+- `--disk-name` without a value is an error rather than a silent fallback.
+
+`--full-isolation` selects `docker-compose-full-isolation.yml`, where every volume is a bind
+mount scoped by `NAME_SUFFIX` (`<project>_opencode_config`, and so on). `NAME_SUFFIX` comes from
+`basename "$PWD"`, so each project gets its own set.
+
+`--disk-name NAME` moves those bind mounts onto an external disk at
+`/Volumes/<NAME>/docker_data/`. This is the point of the flag: the disk may be empty, may hold
+unrelated data, and keeps project state off the boot volume.
+
+#### External-disk volumes are created before launch
+
+Because these are bind mounts (`type: none`, `o: bind`), Docker cannot create a missing host path
+itself — the mount fails before the container starts:
+
+```
+failed to mount local volume: mount /Volumes/EXT1TB/docker_data/myproj_opencode_config:
+no such file or directory
+```
+
+`launch-opencode.sh` therefore runs `mkdir -p` on those paths before invoking compose. This is
+host-side, so it cannot live in the image; the Dockerfile's `mkdir` only covers in-container XDG
+directories.
+
+- Paths are **parsed from the compose file's `device:` lines**, not hardcoded, so a newly added
+  volume cannot silently fail to mount.
+- Only external-disk paths are created. `${PWD}` and `${PWD}/models` belong to your workspace and
+  are left alone.
+- An **unmounted `--disk-name` is rejected** with a clear error. Without that check a typo would
+  `mkdir -p` a fresh `/Volumes/<typo>` on the root disk and quietly write state there.
+
+Converting these to named volumes would also dodge the problem, but it would defeat the purpose of
+`--disk-name`, so `mkdir -p` is the intended mechanism.
+
+### `--privileged`: running opencode inside a sandbox
+
+```sh
+code-inference --full-isolation --privileged --disk-name EXT1TB
+```
+
+Runs the `opencode_privileged` service with `docker.sock`, `privileged: true`, and `user: root`, so
+the agent can spawn nested containers and write root-owned files **inside the container**.
+
+**The container is the sandbox boundary.** The host is what this protects. The alternative is
+running opencode directly on the host, where a bad command or a hallucinated path can touch
+anything on the filesystem; here the damage is bounded by the container and the bind mounts.
+
+It grants host-equivalent access, so it is **opt-in and constrained**:
+
+- `--privileged` **requires** `--full-isolation`. Without it the stack shares `${PWD}` and the
+  default volume root with every other project, which is the opposite of the isolation this mode
+  depends on.
+- `--privileged` **requires** `--disk-name`. Without it the launcher silently falls back to the
+  local compose file and the shared volume root.
+- `opencode_privileged` and the `stack_privileged` profile exist **only** in
+  `docker-compose-full-isolation.yml`. A direct
+  `docker compose -f docker-compose.yml --profile stack_privileged run` finds nothing, so the
+  constraint survives even if the launcher is bypassed.
+
+Treat it as trusted-workspace-only. It also mounts `~/.ssh` read-only, so SSH keys are readable by
+the agent.
 
 ### launch-fresh-opencode.sh
 
@@ -205,3 +276,6 @@ When running opencode from this repo, these settings are auto-loaded. From anoth
 - **"container name already exists"** — Another opencode instance is still running. Exit it or remove with `docker rm opencode-<name>`. With `--full-isolation`, container names are unique per directory.
 - **Permission denied writing to workspace** — The bind-mounted `${PWD}` may be owned by a different host user. The container runs as `opencode` (uid 1000 typically). If your host files are owned by another user, opencode can still read/write them on most setups, but restrictive permissions may require `chmod` on the host directory.
 - **No auth provider configured** — First-time run needs `opencode auth login` unless the stack is already running and `opencode.json` is present.
+- **`invalid project name "<dir>"`** — `NAME_SUFFIX` is `basename "$PWD"` verbatim, and compose requires `[a-z0-9][a-z0-9_-]*`. A leading dot fails, so running from `~/.code-inference` (project name `.code-inference`) is rejected. Run from a normally-named directory, or pass a sanitized name.
+- **`failed to mount local volume: ... no such file or directory`** — The external-disk path doesn't exist. With `--disk-name` the launcher creates these itself; check the disk is actually mounted, since a typo is now rejected outright.
+- **`--privileged requires --full-isolation`** — By design. `--privileged` runs a host-equivalent container, so it is only offered alongside an isolated stack. See [`--privileged`](#--privileged-running-opencode-inside-a-sandbox).
