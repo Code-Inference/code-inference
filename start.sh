@@ -3,101 +3,277 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Prompt to create default config files if missing (skip for --help)
+# Agents this wrapper can launch. Each maps to its own launcher script, compose
+# file, template folder, user, home and volumes, so credentials, session history
+# and settings never collide between agents.
+AGENT_NAMES="opencode, claude, cursor, codex, grok"
+
+# Agent used when --agent is omitted, in every mode: plain launch, --fresh,
+# --full-isolation and --restart. Stated here rather than left to fall out of
+# the code below, so the default is readable and cannot change silently.
+# opencode is the default because it is the only agent with a published image --
+# the others build locally on first run.
+DEFAULT_AGENT="opencode"
+
+# ── Agent mapping ────────────────────────────────────────────────────────────
+# Single source of truth for agent name -> launcher and compose file. Every mode
+# resolves through here, so adding an agent cannot leave one mode behind.
+
+# Reject an unknown or empty agent name. Called directly, not in a subshell, so
+# the exit stops the script.
+validate_agent() {
+  case "$1" in
+    opencode | claude | cursor | codex | grok) return 0 ;;
+  esac
+  if [ -z "$1" ]; then
+    echo "Error: --agent requires a value." >&2
+  else
+    echo "Error: unknown agent '$1'." >&2
+  fi
+  echo "       One of: ${AGENT_NAMES}" >&2
+  exit 2
+}
+
+# Compose file basename (no extension) for the agent's stack.
+agent_compose() {
+  case "$1" in
+    opencode) echo "docker-compose" ;;
+    claude)   echo "docker-compose-claude" ;;
+    cursor)   echo "docker-compose-cursor" ;;
+    codex)    echo "docker-compose-codex" ;;
+    grok)     echo "docker-compose-grok-build" ;;
+    *) return 1 ;;
+  esac
+}
+
+# Launcher script names: launch-<stack>.sh and launch-fresh-<fresh>.sh
+agent_launcher() {
+  case "$1" in
+    opencode) echo "launch-opencode.sh" ;;
+    claude)   echo "launch-claude-code.sh" ;;
+    cursor)   echo "launch-cursor.sh" ;;
+    codex)    echo "launch-codex.sh" ;;
+    grok)     echo "launch-grok-build.sh" ;;
+    *) return 1 ;;
+  esac
+}
+
+agent_fresh_launcher() {
+  case "$1" in
+    opencode) echo "launch-fresh-opencode.sh" ;;
+    claude)   echo "launch-fresh-claude-code.sh" ;;
+    cursor)   echo "launch-fresh-cursor.sh" ;;
+    codex)    echo "launch-fresh-codex.sh" ;;
+    grok)     echo "launch-fresh-grok-build.sh" ;;
+    *) return 1 ;;
+  esac
+}
+
+# Folder of per-agent project templates: templates/<agent>-default
+agent_template_dir() {
+  case "$1" in
+    opencode) echo "templates/opencode-default" ;;
+    claude)   echo "templates/claude-default" ;;
+    cursor)   echo "templates/cursor-default" ;;
+    codex)    echo "templates/codex-default" ;;
+    grok)     echo "templates/grok-default" ;;
+    *) return 1 ;;
+  esac
+}
+
+usage() {
+  cat <<EOF
+Usage: code-inference [--agent NAME] [mode] [options] [-- agent-args]
+
+--agent must be the first argument, so which agent is in play is never in
+doubt. Omit it and ${DEFAULT_AGENT} is used.
+
+Modes (at most one; defaults to a plain launch):
+  --fresh              Run the agent standalone, without the inference stack,
+                       on persistent named volumes
+  --restart            Restart the inference stack (volumes preserved)
+                       Accepts --full-isolation, --disk-name, --privileged, --purge
+  --full-isolation     Run via compose with a scoped project name and
+                       per-project volumes
+
+Options:
+  --agent NAME         Run a coding agent instead of ${DEFAULT_AGENT}.
+                       Must be first. One of: ${AGENT_NAMES}
+                       Default: ${DEFAULT_AGENT}
+    --disk-name NAME   Use an external disk for volumes (default: EXT1TB)
+  --privileged         Run with docker.sock + privileged + root, so it can spawn
+                       nested containers. The container is the sandbox boundary;
+                       the host stays protected. Requires --full-isolation and
+                       --disk-name. Trusted workspaces only.
+  --help, -h           Show this help
+
+Examples:
+  code-inference                                   # opencode, with inference
+  code-inference --agent claude                    # Claude Code, with inference
+  code-inference --agent claude --fresh            # Claude Code, standalone
+  code-inference --agent codex --full-isolation --disk-name EXT1TB
+  code-inference --agent cursor --restart
+
+Everything after -- is passed to the agent.
+Each agent gets its own user, home, volumes and project templates, so
+credentials, session history and settings never collide between agents.
+EOF
+}
+
+# ── Flag parsing ─────────────────────────────────────────────────────────────
+# --agent is positional: it must be the first argument. Anything else would let
+# the agent and the mode disagree, so a misplaced --agent is an error rather
+# than being silently ignored. Everything after -- or the first unrecognised
+# argument goes to the agent.
+AGENT="$DEFAULT_AGENT"
+
 case "${1:-}" in
-  --help|-h) ;;
-  *)
-    MISSING=""
-    if [ ! -f "./opencode.json" ]; then
-      MISSING="$MISSING  - opencode.json                              (provider config — models, instructions, provider URL)\n"
+  --agent)
+    if [ -z "${2:-}" ]; then
+      echo "Error: --agent requires a value." >&2
+      echo "       One of: ${AGENT_NAMES}" >&2
+      exit 2
     fi
-    if [ ! -f "./AGENTS.md" ]; then
-      MISSING="$MISSING  - AGENTS.md                                  (instructions for the AI agent — conventions, commands)\n"
-    fi
-    if [ ! -f "./.opencode/instructions/git-workflow.md" ]; then
-      MISSING="$MISSING  - .opencode/instructions/git-workflow.md     (git workflow rules — branching, PRs, tags, sync)\n"
-    fi
-    if [ ! -f "./.pre-commit-config.yaml" ]; then
-      MISSING="$MISSING  - .pre-commit-config.yaml                    (pre-commit hooks — whitespace, YAML, large files)\n"
-    fi
-    if [ ! -f "./dev-requirements.txt" ]; then
-      MISSING="$MISSING  - dev-requirements.txt                       (dev dependencies — pre-commit, linters, type checkers)\n"
-    fi
-    if [ ! -f "./.github/workflows/ci.yml" ]; then
-      MISSING="$MISSING  - .github/workflows/                         (CI/CD — lint, test, auto-PR, release workflows)\n"
-    fi
-    if [ -n "$MISSING" ]; then
-      echo "Missing config files in $(pwd):"
-      printf '%b' "$MISSING"
-      printf "Create from templates? [Y/n]: "
-      read -r REPLY || true
-      case "$REPLY" in
-        n|N|no|No) echo "Skipping." ;;
-        *)
-          if [ ! -f "./opencode.json" ]; then
-            cp "$SCRIPT_DIR/templates/default/opencode.json" "./opencode.json"
-            echo "Created $(pwd)/opencode.json"
-          fi
-          if [ ! -f "./AGENTS.md" ]; then
-            cp "$SCRIPT_DIR/templates/default/AGENTS.md" "./AGENTS.md"
-            echo "Created $(pwd)/AGENTS.md"
-          fi
-          if [ ! -f "./.opencode/instructions/git-workflow.md" ]; then
-            mkdir -p "./.opencode/instructions"
-            cp "$SCRIPT_DIR/templates/default/.opencode/instructions/git-workflow.md" "./.opencode/instructions/git-workflow.md"
-            echo "Created $(pwd)/.opencode/instructions/git-workflow.md"
-          fi
-          if [ ! -f "./.pre-commit-config.yaml" ]; then
-            cp "$SCRIPT_DIR/templates/default/.pre-commit-config.yaml" "./.pre-commit-config.yaml"
-            echo "Created $(pwd)/.pre-commit-config.yaml"
-          fi
-          if [ ! -f "./dev-requirements.txt" ]; then
-            cp "$SCRIPT_DIR/templates/default/dev-requirements.txt" "./dev-requirements.txt"
-            echo "Created $(pwd)/dev-requirements.txt"
-          fi
-          if [ ! -f "./.github/workflows/ci.yml" ]; then
-            mkdir -p "./.github/workflows"
-            for f in "$SCRIPT_DIR"/templates/default/.github/workflows/*.yml; do
-              [ -f "$f" ] || continue
-              cp "$f" "./.github/workflows/$(basename "$f")"
-              echo "Created $(pwd)/.github/workflows/$(basename "$f")"
-            done
-          fi
-          echo "Customize as needed."
-          ;;
-      esac
-    fi
+    validate_agent "$2"
+    AGENT="$2"
+    shift 2
     ;;
 esac
 
-case "${1:-}" in
-  --fresh)
-    shift
-    exec "$SCRIPT_DIR/launch-fresh-opencode.sh" "$@"
-    ;;
-  --restart)
-    shift
-    exec "$SCRIPT_DIR/restart.sh" "$@"
-    ;;
-  --full-isolation)
-    shift
-    exec "$SCRIPT_DIR/launch-opencode.sh" --full-isolation "$@"
-    ;;
-  --help|-h)
-    echo "Usage: code-inference [--fresh|--restart|--full-isolation] [--privileged] [--disk-name NAME] [-- opencode-args]"
-    echo ""
-    echo "Options:"
-    echo "  --fresh              Run opencode standalone (no inference stack, persistent named volumes)"
-    echo "  --restart            Restart the inference stack (volumes preserved)"
-    echo "                       Accepts --full-isolation, --disk-name, --privileged, --purge"
-    echo "  --full-isolation     Run opencode via compose with scoped project name (inference, ephemeral)"
-    echo "    --disk-name NAME   Use external disk for volumes (default: EXT1TB)"
-    echo "  --privileged         Run opencode with docker.sock + privileged + root, so it"
-    echo "                       can spawn nested containers. The container is the sandbox"
-    echo "                       boundary; the host stays protected. Requires"
-    echo "                       --full-isolation and --disk-name. Trusted workspaces only."
-    ;;
-  *)
-    exec "$SCRIPT_DIR/launch-opencode.sh" "$@"
-    ;;
-esac
+FRESH=0
+RESTART=0
+FULL_ISOLATION=0
+HELP=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --fresh)
+      FRESH=1
+      shift
+      ;;
+    --restart)
+      RESTART=1
+      shift
+      ;;
+    --full-isolation)
+      FULL_ISOLATION=1
+      shift
+      ;;
+    --agent)
+      echo "Error: --agent must be the first argument." >&2
+      echo "       It selects the agent and its project templates, so it cannot" >&2
+      echo "       follow a mode flag and still be unambiguous." >&2
+      echo "       Try: code-inference --agent NAME $*" >&2
+      exit 2
+      ;;
+    --help | -h)
+      HELP=1
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [ "$HELP" -eq 1 ]; then
+  usage
+  exit 0
+fi
+
+# --fresh and --restart are two different things: a standalone agent versus a
+# stack restart. Reject the combination rather than silently honouring one.
+if [ "$FRESH" -eq 1 ] && [ "$RESTART" -eq 1 ]; then
+  echo "Error: --fresh and --restart are mutually exclusive." >&2
+  echo "       --fresh runs the agent alone; --restart restarts the stack." >&2
+  exit 2
+fi
+
+[ -n "$AGENT" ] || AGENT="$DEFAULT_AGENT"
+validate_agent "$AGENT"
+
+# ── Project config bootstrap ─────────────────────────────────────────────────
+# Each agent has its own template folder, because the instruction file and its
+# path differ per agent (CLAUDE.md, AGENTS.md, .cursor/rules/*.mdc, ...) while
+# the shared project files do not. Only meaningful for a plain or isolated
+# launch: --fresh and --restart do not start the agent in this workspace.
+describe_template_file() {
+  case "$1" in
+    AGENTS.md | CLAUDE.md) echo "instructions: conventions, commands" ;;
+    *git-workflow*) echo "git workflow rules: branching, PRs, tags, sync" ;;
+    opencode.json) echo "provider config: models, instructions, provider URL" ;;
+    .pre-commit-config.yaml) echo "pre-commit hooks: whitespace, YAML, large files" ;;
+    dev-requirements.txt) echo "dev dependencies: pre-commit, linters, type checkers" ;;
+    .github/workflows/*) echo "CI/CD: lint, test, auto-PR, release workflows" ;;
+    *) echo "project template" ;;
+  esac
+}
+
+if [ "$FRESH" -ne 1 ] && [ "$RESTART" -ne 1 ]; then
+  TEMPLATE_DIR="$SCRIPT_DIR/$(agent_template_dir "$AGENT")"
+
+  # The file list is read from the template folder rather than hardcoded, so a
+  # new agent or a new template file is offered automatically and cannot drift
+  # from what actually ships.
+  TEMPLATE_FILES="$(cd "$TEMPLATE_DIR" && find . -type f | sed 's|^\./||' | sort)"
+
+  MISSING=""
+  OLD_IFS="$IFS"
+  IFS='
+'
+  # shellcheck disable=SC2086  # word splitting on newline is the point here
+  for f in $TEMPLATE_FILES; do
+    if [ ! -f "./$f" ]; then
+      MISSING="$MISSING  - $(printf '%-44s' "$f") ($(describe_template_file "$f"))\n"
+    fi
+  done
+  IFS="$OLD_IFS"
+
+  if [ -n "$MISSING" ]; then
+    echo "Missing config files in $(pwd) for agent '$AGENT':"
+    printf '%b' "$MISSING"
+    printf 'Create from %s? [Y/n]: ' "$(agent_template_dir "$AGENT")"
+    read -r REPLY || true
+    case "$REPLY" in
+      n | N | no | No) echo "Skipping." ;;
+      *)
+        OLD_IFS="$IFS"
+        IFS='
+'
+        # shellcheck disable=SC2086
+        for f in $TEMPLATE_FILES; do
+          [ -f "./$f" ] && continue
+          mkdir -p "./$(dirname "$f")"
+          cp "$TEMPLATE_DIR/$f" "./$f"
+          echo "Created $(pwd)/$f"
+        done
+        IFS="$OLD_IFS"
+        echo "Customize as needed."
+        ;;
+    esac
+  fi
+fi
+
+# ── Dispatch ─────────────────────────────────────────────────────────────────
+# The agent is resolved up front, so every mode below honours --agent and
+# DEFAULT_AGENT rather than only the mode that happens to match the first
+# argument.
+if [ "$FRESH" -eq 1 ]; then
+  exec "$SCRIPT_DIR/$(agent_fresh_launcher "$AGENT")" "$@"
+fi
+
+if [ "$RESTART" -eq 1 ]; then
+  # restart.sh selects the agent's compose file from the basename passed here, so
+  # the agent mapping stays in this script rather than being duplicated.
+  exec "$SCRIPT_DIR/restart.sh" --compose "$(agent_compose "$AGENT")" "$@"
+fi
+
+if [ "$FULL_ISOLATION" -eq 1 ]; then
+  exec "$SCRIPT_DIR/$(agent_launcher "$AGENT")" --full-isolation "$@"
+fi
+
+exec "$SCRIPT_DIR/$(agent_launcher "$AGENT")" "$@"

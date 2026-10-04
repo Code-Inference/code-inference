@@ -2,7 +2,7 @@
 
 Local inference stack. FastAPI gateway proxies to llama.cpp; all inference stays on-host. PII masking (Chilean RUT), char-level truncation, intent tagging.
 
-Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode.json` instruction). Comprehensive config reference: `docs/settings.md`.
+Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode.json` instruction). Comprehensive config reference: `docs/settings.md`. Multi-agent reference: `docs/agents.md`.
 
 ## Docker commands
 
@@ -27,8 +27,9 @@ Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode
 ## Architecture
 
 - **Entrypoint:** `src/services/api/app/main.py:22` — FastAPI app. Routes: `GET /health`, `GET /health/ready` (pings inference `/v1/models`), `POST /v1/chat/completions` (proxies after prompt processing).
-- **Request flow:** opencode → api (RUT mask, truncate, tag) → inference (llama.cpp). Three-hop chain on `internal` network.
-- **Compose profiles:** `stack` (inference+api, default), `tools` (opencode CLI), `alternate-inference` (vLLM, **not wired** to `internal` network).
+- **Request flow:** agent → api (RUT mask, truncate, tag) → inference (llama.cpp). Three-hop chain on `internal` network.
+- **Agents:** opencode (default), claude, cursor, codex, grok — selected by `code-inference --agent NAME` (`--agent` must be the **first** argument). Each has its own compose file, launcher, stack dir, user/home and volumes. See `docs/agents.md`.
+- **Compose profiles:** `stack` (inference+api+agent, default), `tools` (agent CLI), `alternate-inference` (vLLM, **not wired** to `internal` network), `stack_privileged` (full-isolation files only).
 - **Only inference (llama.cpp) is production-ready.** Other backends (vllm, ollama) are experimental stubs.
 - **Prompt processing:** `src/services/api/app/prompt.py` — RUT masking via regex `_RUT_RE`, char-level truncation (last user message only, appends `…[truncated]`), intent tagging.
 - **No raw prompts logged** — only `request_id`, `tags`, `truncated`, `pii_masked` flags. Response headers: `X-Request-Id`, `X-Prompt-Truncated`, `X-Prompt-Pii-Masked`.
@@ -59,8 +60,8 @@ Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode
 
 ## Gotchas
 
-- **`opencode.json` is gitignored** — `templates/default/opencode.json` is the committed template. Actual config loads `AGENTS.md` + `.opencode/instructions/git-workflow.md`.
-- **`templates/default/`** bootstraps new projects via `start.sh` (copies `opencode.json`, `AGENTS.md`, git workflow, CI workflows).
+- **`opencode.json` is gitignored** — `templates/opencode-default/opencode.json` is the committed template. Actual config loads `AGENTS.md` + `.opencode/instructions/git-workflow.md`.
+- **`templates/<agent>-default/`** bootstraps new projects via `start.sh` (copies `opencode.json`, `AGENTS.md`, git workflow, CI workflows).
 - **`.dockerignore` excludes `docs/`** — cannot COPY docs into any image.
 - **`code-inference --restart`** uses `down` **without** `-v`, so all volumes survive: `opencode_config` (auth tokens), `opencode_data` (sessions), `model_hf_data` (HF cache, ~540MB), `training_data`. It exits non-zero if `./models/` is empty. `--purge` is the only way to destroy volumes, and it confirms first. Accepts the same stack flags as the launcher (`--full-isolation`, `--disk-name`, `--privileged`) so it restarts the stack you actually use.
 - **`restart.sh` does not pass `-f`/`-p` beyond its own flags**; it derives the project from `basename "$PWD"` like the launcher. Run it from your project directory.
@@ -74,5 +75,6 @@ Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode
 - **SSH config workaround (macOS host):** `~/.ssh/config` may contain `UseKeychain yes` (macOS-only). This is invalid on Linux and causes SSH to abort. `entrypoint.sh` strips it and sets `GIT_SSH_COMMAND`. Container's compose service already sets `GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new`.
 - **Temp SSH dir for known_hosts and keys:** `~/.ssh` is a Docker ro bind-mount — the container cannot write to it or change its permissions. `entrypoint.sh` section 2 copies any existing SSH files into a temp dir (`/tmp/ssh-keyscan-*`) and writes `github.com`'s host key there, then sets `GIT_SSH_COMMAND` with `-o UserKnownHostsFile=` pointing at the temp file. The temp dir is cleaned up on exit via `ssh_cleanup` trap. This avoids failures from trying to write `known_hosts` (or generate new keys in the `gh auth` block) on a ro filesystem.
 - **`entrypoint.sh`** (`src/opencode-stack/entrypoint.sh`) is the Docker `ENTRYPOINT` for the opencode service. Runs on container start: sets up `.profile`, `gh auth`, git identity, then `exec opencode "$@"`. Interactive prompts (`gh auth`, git config) skip when not a TTY. Idempotent — skips configured steps.
+- **Two entrypoint copies, on purpose (transition).** `src/common/entrypoint.sh` is shared by the claude, codex, cursor and grok stacks and ends in `exec "${AGENT_BIN:-opencode}" "$@"`. `src/opencode-stack/entrypoint.sh` is the pre-split copy, kept so the opencode image builds and behaves exactly as before. They differ **only** in the header comment and that exec line — `AGENT_BIN` is unset in the opencode stack, so both run the same command. **Apply any logic change to both files**, or run `./scripts/check-entrypoint-sync.sh` (pre-commit + CI) to catch a one-sided edit. Delete the opencode-stack copy once that stack adopts the shared one.
 - **CLI wrapper chain:** `install.sh` → `start.sh` → `launch-opencode.sh`/`launch-fresh-opencode.sh`. Installs to `~/.code-inference`, creates `code-inference` bin command.
 - **Cross-references that don't exist on disk:** `docs/architecture.md`, `docs/rate-limits.md`, `docs/git-workflow.md`.

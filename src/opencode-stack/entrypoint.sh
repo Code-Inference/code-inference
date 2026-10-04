@@ -2,6 +2,13 @@
 # Bootstrap script for ephemeral dev container.
 # Run after container rebuild to restore tooling config.
 #
+# TRANSITION: src/common/entrypoint.sh is the shared copy used by the claude,
+# codex, cursor and grok stacks. This copy is kept as-is so the opencode image
+# and pipeline keep building exactly as before while the stacks are split out.
+# The two must stay identical apart from the header and the final exec line:
+# AGENT_BIN is unset here, so `${AGENT_BIN:-opencode}` resolves to `opencode`.
+# Edit a change in both, or run scripts/check-entrypoint-sync.sh to verify.
+#
 # Credential handling:
 #   - GH_TOKEN is exported so tools like gh and git can use it,
 #     but only sourced from gh's own config file (not stored here).
