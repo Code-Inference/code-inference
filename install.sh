@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-REPO_URL="https://github.com/jeanmachuca/code-inference.git"
+REPO_URL="https://github.com/Code-Inference/code-inference.git"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.code-inference}"
 BIN_DIR="${BIN_DIR:-/usr/local/bin}"
 CMD_NAME="${CMD_NAME:-code-inference}"

@@ -7,10 +7,10 @@ in your project against a preconfigured local `llama.cpp` stack.
 
 ```bash
 # Latest (pre-release)
-curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/development/install.sh | sh
+curl -sS https://raw.githubusercontent.com/Code-Inference/code-inference/development/install.sh | sh
 
 # Stable release (once on main):
-# curl -sS https://raw.githubusercontent.com/jeanmachuca/code-inference/main/install.sh | sh
+# curl -sS https://raw.githubusercontent.com/Code-Inference/code-inference/main/install.sh | sh
 ```
 
 ## Usage

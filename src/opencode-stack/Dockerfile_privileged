@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 # OpenCode runtime — adds dev tooling on top of ghcr.io/anomalyco/opencode.
 #
-# Published to ghcr.io/jeanmachuca/code-inference for pre-built use.
+# Published to ghcr.io/code-inference/code-inference for pre-built use.
 # The compose service builds from this Dockerfile; the pre-built image
-# is used via `docker run ghcr.io/jeanmachuca/code-inference` or in CI.
+# is used via `docker run ghcr.io/code-inference/code-inference` or in CI.
 #
 # For the recommended CLI workflow, see README.md and docs/installation.md.
 
