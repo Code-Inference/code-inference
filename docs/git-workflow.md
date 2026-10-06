@@ -290,10 +290,17 @@ change. Tags produced:
 Agent images carry a suffix: `1.6.0-claude`, `latest-cursor`, and so on. opencode owns the
 bare tags.
 
-`latest` is gated on the agent as well as the ref on purpose. With the ref check alone, a tag
-push still emitted `latest` from every matrix job, five jobs raced on the one shared tag, and
-the last writer won — which left `latest` pointing at the cursor image in v1.7.2. One writer
-means no race regardless of what the ref check does.
+Two tag rules are load-bearing and were both wrong in v1.7.x:
+
+- **`latest` is not in the metadata tag list.** metadata-action's `enable=` did not suppress
+  it — on a tag push every matrix job emitted a bare `latest`, they raced on the one shared
+  tag, and the last writer won, leaving `latest` pointing at the cursor image in v1.7.2 and
+  again in v1.7.3. A dedicated step with a step-level `if` fixed it.
+- **The sha rule must omit `suffix=`.** An explicit `suffix=` overrides the flavor suffix, so
+  every agent got the same bare `<sha>` tag and raced for it.
+
+After tagging, check the registry rather than assuming: a tag existing is not the same as it
+pointing at the right image.
 
 So `docker pull ghcr.io/<owner>/<repo>:1.6.0`, not `:v1.6.0`. A pull of
 `:v1.6.0` fails with `not found` even though the tag exists in git.

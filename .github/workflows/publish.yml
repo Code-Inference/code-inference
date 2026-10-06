@@ -84,21 +84,17 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           flavor: ${{ matrix.flavor }}
-          # `latest` belongs to opencode and is written by that job alone.
-          #
-          # Gating on the agent as well as the ref is deliberate: with the ref
-          # check alone, a tag push still emitted `latest` from every job, five
-          # jobs raced on the one shared tag, and the last writer won — which is
-          # how `latest` ended up pointing at the cursor image in v1.7.2. With
-          # one writer there is no race, whatever the ref check does.
+          # The sha tag deliberately omits `suffix=`: setting it explicitly
+          # overrides the flavor suffix, which would give every agent the same
+          # bare `<sha>` tag and put them in a five-way race for it.
           #
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && matrix.agent == 'opencode' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=,suffix=,format=short
+            type=sha,prefix=,format=short
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -108,3 +104,23 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.agent }}
           cache-to: type=gha,mode=max,scope=${{ matrix.agent }}
+
+      # `latest` is opencode's, and only opencode's.
+      #
+      # It is deliberately NOT part of the metadata tag list. metadata-action's
+      # `enable=` did not suppress it: on a v* tag push every job emitted a bare
+      # `latest`, so five jobs raced on the one shared tag and the last writer
+      # won. In v1.7.2 and again in v1.7.3 that left `latest` pointing at the
+      # cursor image. A step-level `if` is honoured reliably where `enable` was
+      # not, and re-tagging the manifest just pushed needs no second build.
+      - name: Publish latest
+        if: >-
+          matrix.agent == 'opencode' && github.ref == 'refs/heads/main' &&
+          steps.build.outputs.digest != ''
+        env:
+          IMAGE: ${{ env.IMAGE }}
+        run: |
+          echo "Tagging $IMAGE:latest -> ${{ steps.build.outputs.digest }}"
+          docker buildx imagetools create \
+            --tag "$IMAGE:latest" \
+            "$IMAGE@${{ steps.build.outputs.digest }}"

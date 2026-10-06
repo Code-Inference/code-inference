@@ -582,11 +582,20 @@ resolve to the default image; the other four are suffixed:
 | major.minor | `1.6` | `1.6-claude` | `1.6-cursor` | `1.6-codex` | `1.6-grok` |
 | sha | `570f391` | `570f391-claude` | `570f391-cursor` | `570f391-codex` | `570f391-grok` |
 
-`latest` is produced only on a push to `main`, and **only by the opencode job** — it is gated on
-the agent as well as the ref, so exactly one job can ever write that tag. That is not
-redundant: with the ref check alone, a tag push still emitted `latest` from all five jobs,
-they raced on the one shared tag, and the last writer won. In v1.7.2 that left `latest`
-pointing at the **cursor** image while opencode's version had no `latest` at all.
+Two shared-tag rules exist because both were broken in v1.7.x, and neither is obvious:
+
+**`latest` is opencode's, written by one step.** It is not in the metadata tag list at all.
+metadata-action's `enable=` did not suppress it — on a `v*` tag push **every** job emitted a
+bare `latest`, five jobs raced on the one shared tag, and the last writer won. That is how
+`latest` ended up pointing at the **cursor** image in both v1.7.2 and v1.7.3. A step-level
+`if: matrix.agent == 'opencode' && github.ref == 'refs/heads/main'` is honoured where
+`enable=` was not, and `docker buildx imagetools create` re-tags the manifest just pushed, so
+no second build is needed.
+
+**The sha tag must not set `suffix=`.** `type=sha,prefix=,suffix=,format=short` looks
+equivalent to omitting it, but an explicit `suffix=` overrides the flavor suffix — every agent
+gets the same bare `<sha>` tag and races for it. Observed in v1.7.3: bare `8a53abf`, `9566092`
+and `b3e72ab` with no suffixed variants. The rule is now `type=sha,prefix=,format=short`.
 
 Note there is **no `v` prefix** on image tags — `docker/metadata-action` strips it, so `:v1.6.0`
 fails with `not found` while `:1.6.0` succeeds.
