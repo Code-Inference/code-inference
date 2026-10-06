@@ -120,7 +120,11 @@ jobs:
         env:
           IMAGE: ${{ env.IMAGE }}
         run: |
-          echo "Tagging $IMAGE:latest -> ${{ steps.build.outputs.digest }}"
+          # github.repository is `Code-Inference/code-inference`; metadata-action
+          # lower-cases it for us but docker does not, and rejects the reference
+          # with "repository name must be lowercase".
+          image="$(printf '%s' "$IMAGE" | tr '[:upper:]' '[:lower:]')"
+          echo "Tagging $image:latest -> ${{ steps.build.outputs.digest }}"
           docker buildx imagetools create \
-            --tag "$IMAGE:latest" \
-            "$IMAGE@${{ steps.build.outputs.digest }}"
+            --tag "$image:latest" \
+            "$image@${{ steps.build.outputs.digest }}"
