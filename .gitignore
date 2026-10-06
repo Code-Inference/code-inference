@@ -20,3 +20,10 @@ sessions/
 .sessions/
 **/.DS_Store/*
 .DS_Store
+# macOS AppleDouble and editor droppings. `._*` in particular: these get created
+# whenever a folder is copied on macOS, and an `._`-adjacent "name 2.md"
+# duplicate was committed into templates/ once, which start.sh then offered to
+# every new project as a project template.
+**/._*
+*~
+*.icloud
