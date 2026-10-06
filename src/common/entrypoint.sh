@@ -6,12 +6,6 @@
 # The agent binary to exec is taken from AGENT_BIN, defaulting to opencode,
 # so each stack's Dockerfile only has to set that variable.
 #
-# TRANSITION: src/opencode-stack/entrypoint.sh still holds the pre-split copy,
-# used by the opencode image so its pipeline is unaffected. It is a duplicate of
-# this file apart from the header and the final exec line, and is expected to be
-# deleted once the opencode stack adopts this one. Edit a change in both while
-# both exist, or run scripts/check-entrypoint-sync.sh to verify.
-#
 # Credential handling:
 #   - GH_TOKEN is exported so tools like gh and git can use it,
 #     but only sourced from gh's own config file (not stored here).

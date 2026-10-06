@@ -436,10 +436,9 @@ order:
 
 1. `shellcheck -s sh start.sh restart.sh install.sh launch-*.sh scripts/*.sh`
 2. `./scripts/check-template-sync.sh`
-3. `./scripts/check-entrypoint-sync.sh`
-4. `ruff check`, `ruff format --check .`, `mypy src/`
+3. `ruff check`, `ruff format --check .`, `mypy src/`
 
-Steps 1–3 need no Python and run before the install, so a shell or duplication failure is
+Steps 1–2 need no Python and run before the install, so a shell or duplication failure is
 reported in seconds. NOTE: a PR that modifies `.github/workflows/**` is held by GitHub for
 maintainer approval before any job runs, and shows as `action_required` with no jobs.
 
@@ -646,11 +645,13 @@ Interactive prompts (`gh auth`, git config) skip when not a TTY, and configured 
 skipped on re-entry, so the script is idempotent. SSH config is copied to a restricted temp
 directory to strip macOS-only directives, because `~/.ssh` is a read-only bind mount.
 
-`src/opencode-stack/entrypoint.sh` is the pre-split copy still used by the opencode image, so
-that stack is unaffected. The two differ only in the header and that final line, and
-`AGENT_BIN` is unset in the opencode stack, so both run the same command. This duplication is
-temporary: apply logic changes to both, or run
-`./scripts/check-entrypoint-sync.sh`.
+Every agent stack copies this one file, opencode included. There is no second copy: the
+opencode stack previously kept a pre-split duplicate, removed once the opencode image was
+confirmed to carry this file byte-for-byte and to exec `opencode` with `AGENT_BIN` unset.
+
+A single copy also closes a blind spot the sync guard could not cover. The guard proved the
+two files agreed with each other, but nothing proved the right file was copied into the right
+image — a wrong `COPY` line would have gone unnoticed.
 
 ---
 
@@ -685,11 +686,13 @@ frontmatter. Codex and Grok have no rules directory, so their templates referenc
 | Script | Fails when |
 |--------|------------|
 | `check-template-sync.sh` | A file shared by all five templates differs between them |
-| `check-entrypoint-sync.sh` | The two entrypoint copies differ beyond the header and exec line |
 
-Both run as pre-commit hooks (`template-sync`, `entrypoint-sync`) and as CI lint steps. They
-exist because the duplicated files would otherwise drift silently — a fix applied to one copy
-only, leaving opencode behaving differently from every other stack with no error anywhere.
+It runs as the `template-sync` pre-commit hook and as a CI lint step, because the five
+per-agent template folders are separate copies of the same shared files, and duplication
+without a check drifts silently.
+
+A former `check-entrypoint-sync.sh` guarded the two container-entrypoint copies and was
+removed along with the duplicate it protected.
 
 ---
 
