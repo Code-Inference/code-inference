@@ -36,6 +36,26 @@ You may be prompted for `sudo` if `/usr/local/bin/` is not writable by your user
 code-inference --help
 ```
 
+## Choosing an agent
+
+The installer sets up one command that runs any of the supported agents.
+`opencode` is the default; `--agent` selects another and must be the **first**
+argument:
+
+```bash
+code-inference                              # opencode
+code-inference --agent claude               # Claude Code
+code-inference --agent cursor               # Cursor CLI
+code-inference --agent codex                # Codex CLI
+code-inference --agent grok                 # Grok Build
+```
+
+Each agent's image is pulled on demand, so there is nothing extra to install.
+Every agent keeps its own configuration and session history, so switching
+between them — or running several at once — does not mix their state.
+
+See [agents.md](agents.md) for versions, base images and per-agent volumes.
+
 ## Platform details
 
 ### macOS
