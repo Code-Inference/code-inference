@@ -49,19 +49,19 @@ jobs:
           # falsy, which silently suffixed opencode too in v1.7.1.
           - agent: opencode
             dockerfile: src/opencode-stack/Dockerfile
-            flavor: ''
+            flavor: 'latest=false'
           - agent: claude
             dockerfile: src/claude-stack/Dockerfile
-            flavor: 'suffix=-claude'
+            flavor: 'suffix=-claude,latest=false'
           - agent: cursor
             dockerfile: src/cursor-stack/Dockerfile
-            flavor: 'suffix=-cursor'
+            flavor: 'suffix=-cursor,latest=false'
           - agent: codex
             dockerfile: src/codex-stack/Dockerfile
-            flavor: 'suffix=-codex'
+            flavor: 'suffix=-codex,latest=false'
           - agent: grok
             dockerfile: src/grok-stack/Dockerfile
-            flavor: 'suffix=-grok'
+            flavor: 'suffix=-grok,latest=false'
     steps:
       - uses: actions/checkout@v4
 
