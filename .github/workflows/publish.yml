@@ -42,16 +42,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # opencode keeps the bare tags (1.7.2, 1.7, latest) so an existing
+          # reference to the default agent image keeps resolving. The flavor is
+          # stated per entry rather than computed: GitHub's `cond && '' || x`
+          # returns x when the middle value is an empty string, because '' is
+          # falsy, which silently suffixed opencode too in v1.7.1.
           - agent: opencode
             dockerfile: src/opencode-stack/Dockerfile
+            flavor: ''
           - agent: claude
             dockerfile: src/claude-stack/Dockerfile
+            flavor: 'suffix=-claude'
           - agent: cursor
             dockerfile: src/cursor-stack/Dockerfile
+            flavor: 'suffix=-cursor'
           - agent: codex
             dockerfile: src/codex-stack/Dockerfile
+            flavor: 'suffix=-codex'
           - agent: grok
             dockerfile: src/grok-stack/Dockerfile
+            flavor: 'suffix=-grok'
     steps:
       - uses: actions/checkout@v4
 
@@ -73,10 +83,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
-          # opencode keeps the bare tags, so an existing `:1.6.0` reference
-          # still resolves to the default agent image. The other four are
-          # suffixed, so `:1.6.0-claude` and `:latest-cursor` sit alongside it.
-          flavor: ${{ matrix.agent == 'opencode' && '' || format('suffix=-{0}', matrix.agent) }}
+          flavor: ${{ matrix.flavor }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
