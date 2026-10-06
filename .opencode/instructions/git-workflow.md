@@ -7,6 +7,10 @@ alwaysApply: true
 
 **Normative doc:** [docs/git-workflow.md](docs/git-workflow.md). Follow that document for branches, PRs, releases, and tags. Private repos on GitHub Free may **not** enforce branch protection in the UI—**process and this rule** still apply.
 
+## Topic branch prefixes matter
+
+**`.github/workflows/open-pr-to-development.yml` only fires on `feature/**`, `fix/**` and `bugfix/**`.** A branch named anything else (`chore/…`, `docs/…`) pushes fine and then silently does nothing — no PR, no CI. Use one of the three prefixes, or open the PR yourself.
+
 ## Branching and PRs (default)
 
 - **Do not** commit new work **directly** on **`main`** or **`development`**. Use a **topic branch** from **`development`**:  
@@ -55,5 +59,5 @@ Use **`.github/workflows/open-pr-to-development.yml`** (push to **`feature/**`**
 
 ## Releases and tags
 
-- **Feature releases:** Prefer **Actions → Release to main** (`.github/workflows/release-to-main.yml`)—see [docs/git-workflow.md §9](docs/git-workflow.md#9-release-pr-and-tag-automation). Otherwise add an **annotated** SemVer tag on **`main`**—[§3.1](docs/git-workflow.md#31-tag-every-feature-release-normative).
-- **Integration tags:** After a **`feature/*`** PR merges into **`development`**, add **annotated** **`vMAJOR.MINOR.PATCH-dev.N`** on **`development`** and push—[§3.2](docs/git-workflow.md#32-tag-when-a-feature-branch-merges-to-development-normative).
+- **Feature releases:** Merge by PR with a **merge commit** (no squash). Then open a **release PR** from **`development`** → **`main`**, merge it once CI and **`allowed-source-for-main`** are green, and add an **annotated** SemVer tag on **`main`**—see [docs/git-workflow.md §9](docs/git-workflow.md#9-release-pr-and-tag-automation) and [§3.1](docs/git-workflow.md#31-tag-every-feature-release-normative). Pushing the tag is what triggers **`.github/workflows/publish.yml`** to build and push the images. (There is **no** `release-to-main.yml` workflow; the flow above is the real one.)
+- **Integration tags:** Do **not** push `vMAJOR.MINOR.PATCH-dev.N` tags to **`development`** unless you have first narrowed `publish.yml`'s `tags: ['v*']` trigger—otherwise the dev tag publishes an image built from an unreleased commit. See [docs/git-workflow.md §3.2](docs/git-workflow.md#32-tag-when-a-feature-branch-merges-to-development-normative).

@@ -66,7 +66,8 @@ boundary instead of running the agent directly on your host. See
 4. The local inference stack (`llama.cpp` + API) runs alongside via the `stack` profile
 
 The `--fresh` flag skips the compose stack and runs the agent standalone with persistent named
-volumes. opencode pulls its published image; the other four build one locally on first run.
+volumes. Every agent has a published image, so `--fresh` pulls rather than builds; a local
+image or build is used only when you are working on the stacks themselves.
 
 No Docker-in-Docker, no wrapper image, no extra daemons.
 

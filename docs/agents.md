@@ -42,7 +42,8 @@ when you asked for Claude Code is worse than refusing. `DEFAULT_AGENT` in
 | Stack dir | `src/opencode-stack/` | `src/claude-stack/` | `src/cursor-stack/` | `src/codex-stack/` | `src/grok-stack/` |
 | Template folder | `templates/opencode-default` | `templates/claude-default` | `templates/cursor-default` | `templates/codex-default` | `templates/grok-default` |
 | Instruction file | `AGENTS.md` | `CLAUDE.md` | `AGENTS.md` | `AGENTS.md` | `AGENTS.md` |
-| Published image | yes (`ghcr.io/anomalyco/opencode`) | no | no | no | no |
+| Published image | `ghcr.io/code-inference/code-inference` | same | same | same | same |
+| Image tag suffix | *(none — owns the bare tags)* | `-claude` | `-cursor` | `-codex` | `-grok` |
 
 Versions are pinned with `ARG` in each stack's Dockerfile. Bump the `ARG`, not
 the `FROM` line, for the four agent stacks.
@@ -102,20 +103,33 @@ agent mapping in one place.
 `--full-isolation` and `--disk-name`, and grants `docker.sock` + `privileged: true`
 + root. See [opencode-stack.md](opencode-stack.md#--privileged-running-opencode-inside-a-sandbox).
 
-## `--fresh` builds locally
+## `--fresh` image resolution
 
-opencode has a published image, so `code-inference --fresh` pulls it. The other
-four have no published image: `launch-fresh-<agent>.sh` builds
-`code-inference-<agent>-fresh` from `src/<agent>-stack/Dockerfile` on first use
-and reuses it afterwards (Docker layer cache).
+Every agent has a published image, so `--fresh` no longer needs a local build in
+the normal case. `launch-fresh-<agent>.sh` resolves the image in this order:
+
+1. **A local `code-inference-<agent>-fresh` tag**, if one exists. A build from
+   this checkout wins over the registry, which is what you want when working on
+   the stack itself.
+2. **The published image**, pulled from
+   `ghcr.io/code-inference/code-inference:latest-<agent>` and retagged locally.
+3. **A local build** from `src/<agent>-stack/Dockerfile`, only if the pull
+   fails. This is the path for a commit ahead of the latest release, where the
+   registry has no matching image yet.
 
 ```bash
 docker images | grep fresh
 # code-inference-claude-fresh   latest
 ```
 
-The first `--fresh` run for a new agent takes several minutes and needs network
-access. Delete the image to force a rebuild.
+To force a rebuild after editing a stack Dockerfile:
+
+```bash
+docker rmi code-inference-claude-fresh
+```
+
+Step 1 is why editing a Dockerfile does not take effect immediately — the stale
+local tag is used in preference to the registry.
 
 ## Project templates
 
