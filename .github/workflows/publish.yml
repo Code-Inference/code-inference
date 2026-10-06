@@ -84,8 +84,16 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           flavor: ${{ matrix.flavor }}
+          # `latest` belongs to opencode and is written by that job alone.
+          #
+          # Gating on the agent as well as the ref is deliberate: with the ref
+          # check alone, a tag push still emitted `latest` from every job, five
+          # jobs raced on the one shared tag, and the last writer won — which is
+          # how `latest` ended up pointing at the cursor image in v1.7.2. With
+          # one writer there is no race, whatever the ref check does.
+          #
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && matrix.agent == 'opencode' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,suffix=,format=short
