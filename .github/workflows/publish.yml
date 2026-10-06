@@ -7,17 +7,19 @@ name: Publish image
 #     MINOR (v1.0.0 → v1.1.0):  New features, additions, non-breaking changes.
 #     MAJOR (v1.0.0 → v2.0.0):  Breaking changes (API, config, interface).
 #
-#   Process:
+#   Process (see docs/git-workflow.md §9):
 #     1. Merge topic PR → development
 #     2. Open release PR: development → main
 #     3. Merge release PR
 #     4. Tag on main: git tag -a vMAJOR.MINOR.PATCH -m "..."
 #     5. Push tag:       git push origin vMAJOR.MINOR.PATCH
 #
-#   Integration tags on development (after topic merge):
-#     git tag -a vMAJOR.MINOR.PATCH-dev.N -m "..."
-#     git push origin vMAJOR.MINOR.PATCH-dev.N
+#   WARNING — this workflow triggers on `tags: ['v*']` for ANY branch. A
+#   `vX.Y.Z-dev.N` integration tag on development would publish an image built
+#   from an unreviewed commit. See docs/git-workflow.md §3.2 before adding one.
 #
+#   Image tags produced (note: no `v` prefix, metadata-action strips it):
+#     1.6.0, 1.6, latest (main only), <short-sha>
 
 on:
   push:
@@ -35,6 +37,21 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    strategy:
+      # One agent failing should not hide the others' results.
+      fail-fast: false
+      matrix:
+        include:
+          - agent: opencode
+            dockerfile: src/opencode-stack/Dockerfile
+          - agent: claude
+            dockerfile: src/claude-stack/Dockerfile
+          - agent: cursor
+            dockerfile: src/cursor-stack/Dockerfile
+          - agent: codex
+            dockerfile: src/codex-stack/Dockerfile
+          - agent: grok
+            dockerfile: src/grok-stack/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -50,6 +67,10 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
+          # opencode keeps the bare tags, so an existing `:1.6.0` reference
+          # still resolves to the default agent image. The other four are
+          # suffixed, so `:1.6.0-claude` and `:latest-cursor` sit alongside it.
+          flavor: ${{ matrix.agent == 'opencode' && '' || format('suffix=-{0}', matrix.agent) }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
@@ -60,7 +81,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: src/opencode-stack/Dockerfile
+          file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.agent }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.agent }}

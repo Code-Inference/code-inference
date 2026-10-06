@@ -558,6 +558,40 @@ The launcher creates those host paths first — Docker cannot create a missing b
 
 ---
 
+## `.github/workflows/publish.yml` — Image publishing
+
+Builds and pushes every agent image to `ghcr.io/${{ github.repository }}`. The path is derived
+from `github.repository`, so it follows a repository move with no change here.
+
+**Triggers:** push to `main`, push of a `v*` tag, or manual dispatch.
+
+| Setting | Value |
+|---------|-------|
+| Jobs | one matrix entry per agent (`opencode`, `claude`, `cursor`, `codex`, `grok`) |
+| `fail-fast` | `false` — one agent failing must not hide the others' results |
+| Dockerfiles | `src/<agent>-stack/Dockerfile` per matrix entry |
+| Build cache | `type=gha`, per-agent scope |
+
+**Tag scheme.** opencode keeps the bare tags so existing references such as `:1.6.0` still
+resolve to the default image; the other four are suffixed:
+
+| Tag | opencode | claude | cursor | codex | grok |
+|-----|----------|--------|--------|------|------|
+| `latest` | yes | `latest-claude` | `latest-cursor` | `latest-codex` | `latest-grok` |
+| version | `1.6.0` | `1.6.0-claude` | `1.6.0-cursor` | `1.6.0-codex` | `1.6.0-grok` |
+| major.minor | `1.6` | `1.6-claude` | `1.6-cursor` | `1.6-codex` | `1.6-grok` |
+| sha | `570f391` | `570f391-claude` | `570f391-cursor` | `570f391-codex` | `570f391-grok` |
+
+`latest` is only produced on a push to `main`, not on a tag push. Note there is **no `v`
+prefix** on image tags — `docker/metadata-action` strips it, so `:v1.6.0` fails with `not
+found` while `:1.6.0` succeeds.
+
+Because the trigger is `tags: ['v*']` for any branch, a `vX.Y.Z-dev.N` tag on `development`
+would publish an image built from an unreleased commit. See
+[git-workflow.md §3.2](git-workflow.md#32-tag-when-a-feature-branch-merges-to-development-normative).
+
+---
+
 ## `src/<agent>-stack/Dockerfile` — Agent images
 
 One `Dockerfile` plus one `Dockerfile_privileged` per agent. The privileged variant is

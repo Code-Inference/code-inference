@@ -181,6 +181,11 @@ All Dockerfiles use the **project root** as build context (set in `docker-compos
 | `llama-stack` | `src/llama-stack/Dockerfile` | `python:3` | Meta llama-model CLI for weight downloads. |
 | `ollama-stack` | `src/ollama-stack/Dockerfile` | `ubuntu` | Ollama CLI alternative. |
 | `opencode` | `src/opencode-stack/Dockerfile` | `ghcr.io/anomalyco/opencode` | OpenCode AI CLI. Mounts `${PWD}:/workspace` for directory-agnostic operation. |
+
+All five agent images are published to `ghcr.io/code-inference/code-inference` by
+`.github/workflows/publish.yml` on a push to `main` or a `v*` tag. opencode owns the bare tags
+(`1.6.0`); the others are suffixed (`1.6.0-claude`). See
+[settings.md](settings.md#githubworkflowspublishyml--image-publishing).
 | `claude` | `src/claude-stack/Dockerfile` | `alpine` | Claude Code CLI. |
 | `cursor` | `src/cursor-stack/Dockerfile` | `debian:bookworm` | Cursor CLI. Debian, not Alpine: its bundled Node is glibc-linked. |
 | `codex` | `src/codex-stack/Dockerfile` | `alpine` | Codex CLI. |
