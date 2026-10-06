@@ -103,33 +103,33 @@ agent mapping in one place.
 `--full-isolation` and `--disk-name`, and grants `docker.sock` + `privileged: true`
 + root. See [opencode-stack.md](opencode-stack.md#--privileged-running-opencode-inside-a-sandbox).
 
-## `--fresh` image resolution
+## `--fresh` builds from the Dockerfile
 
-Every agent has a published image, so `--fresh` no longer needs a local build in
-the normal case. `launch-fresh-<agent>.sh` resolves the image in this order:
-
-1. **A local `code-inference-<agent>-fresh` tag**, if one exists. A build from
-   this checkout wins over the registry, which is what you want when working on
-   the stack itself.
-2. **The published image**, pulled from
-   `ghcr.io/code-inference/code-inference:latest-<agent>` and retagged locally.
-3. **A local build** from `src/<agent>-stack/Dockerfile`, only if the pull
-   fails. This is the path for a commit ahead of the latest release, where the
-   registry has no matching image yet.
+`launch-fresh-<agent>.sh` builds `code-inference-<agent>-fresh` from
+`src/<agent>-stack/Dockerfile` on first use and reuses it afterwards.
 
 ```bash
 docker images | grep fresh
 # code-inference-claude-fresh   latest
 ```
 
-To force a rebuild after editing a stack Dockerfile:
+The build is layer-cached, so it is fast when nothing has changed. To force a
+rebuild after editing the stack Dockerfile:
 
 ```bash
 docker rmi code-inference-claude-fresh
 ```
 
-Step 1 is why editing a Dockerfile does not take effect immediately — the stale
-local tag is used in preference to the registry.
+**It builds rather than pulls, deliberately.** Images for all five stacks are
+published to `ghcr.io/code-inference/code-inference`, and `--fresh` does not use
+them. Building from this checkout means `--fresh` always matches the Dockerfile
+and toolchain in the repository you are running from — edit
+`src/<agent>-stack/Dockerfile` and the change takes effect, instead of a registry
+tag quietly deciding which toolchain you get.
+
+opencode is the exception: `launch-fresh-opencode.sh` runs the published
+`ghcr.io/anomalyco/opencode` image, because opencode ships and versions that
+image upstream rather than building it here.
 
 ## Project templates
 
