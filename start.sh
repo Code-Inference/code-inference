@@ -201,6 +201,25 @@ validate_agent "$AGENT"
 # path differ per agent (CLAUDE.md, AGENTS.md, .cursor/rules/*.mdc, ...) while
 # the shared project files do not. Only meaningful for a plain or isolated
 # launch: --fresh and --restart do not start the agent in this workspace.
+# Finder and Finder-adjacent tools create "<name> 2.md" duplicates when a folder
+# is copied on macOS. One was committed into templates/ and offered to every new
+# project as a project template. .gitignore covers ._* and .DS_Store, but no
+# safe pattern can ignore "name 2.md" without risking a real file, so drop it
+# here instead: a " 2" name is only a duplicate if the de-duplicated original
+# exists alongside it.
+is_finder_duplicate() {
+  base="$1"
+  case "$base" in
+    *.*) stem="${base%.*}"; ext=".${base##*.}" ;;
+    *) stem="$base"; ext="" ;;
+  esac
+  case "$stem" in
+    *" 2" | *" 3" | *" 4" | *" 5" | *" 6" | *" 7" | *" 8" | *" 9") ;;
+    *) return 1 ;;
+  esac
+  [ -f "$TEMPLATE_DIR/${stem% *}$ext" ]
+}
+
 describe_template_file() {
   case "$1" in
     AGENTS.md | CLAUDE.md) echo "instructions: conventions, commands" ;;
@@ -213,13 +232,35 @@ describe_template_file() {
   esac
 }
 
-if [ "$FRESH" -ne 1 ] && [ "$RESTART" -ne 1 ]; then
+# Never scaffold the checkout that provides the templates. Running start.sh from
+# inside the code-inference repo is a mistake, not a project to seed: every file
+# it offers already exists here, and if one were missing it would add a template
+# copy to the repo itself. Only files that are absent are ever created, so this
+# cannot overwrite anything -- but it can still pollute the repo.
+CWD_PHYSICAL="$(pwd -P)"
+SCRIPT_PHYSICAL="$(cd "$SCRIPT_DIR" && pwd -P)"
+INSIDE_TEMPLATES_REPO=0
+[ "$CWD_PHYSICAL" = "$SCRIPT_PHYSICAL" ] && INSIDE_TEMPLATES_REPO=1
+
+if [ "$FRESH" -ne 1 ] && [ "$RESTART" -ne 1 ] && [ "$INSIDE_TEMPLATES_REPO" -eq 0 ]; then
   TEMPLATE_DIR="$SCRIPT_DIR/$(agent_template_dir "$AGENT")"
 
   # The file list is read from the template folder rather than hardcoded, so a
   # new agent or a new template file is offered automatically and cannot drift
   # from what actually ships.
-  TEMPLATE_FILES="$(cd "$TEMPLATE_DIR" && find . -type f | sed 's|^\./||' | sort)"
+  #
+  # From git when possible: only committed files are templates. Using `find`
+  # offered anything lying on disk, and a Finder duplicate ("AGENTS 2.md",
+  # created when a folder is copied on macOS) got committed once and was then
+  # offered to every new project as a project template.
+  if git -C "$TEMPLATE_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+    TEMPLATE_FILES="$(cd "$TEMPLATE_DIR" && git ls-files)"
+  else
+    # No git (vendored copy): fall back to find, minus the artefacts.
+    TEMPLATE_FILES="$(cd "$TEMPLATE_DIR" && find . -type f \
+      ! -name '.DS_Store' ! -name '._*' ! -name '*~' ! -name '*.icloud' \
+      | sed 's|^\./||' | sort)"
+  fi
 
   MISSING=""
   OLD_IFS="$IFS"
@@ -227,6 +268,7 @@ if [ "$FRESH" -ne 1 ] && [ "$RESTART" -ne 1 ]; then
 '
   # shellcheck disable=SC2086  # word splitting on newline is the point here
   for f in $TEMPLATE_FILES; do
+    is_finder_duplicate "$f" && continue
     if [ ! -f "./$f" ]; then
       MISSING="$MISSING  - $(printf '%-44s' "$f") ($(describe_template_file "$f"))\n"
     fi
@@ -246,6 +288,7 @@ if [ "$FRESH" -ne 1 ] && [ "$RESTART" -ne 1 ]; then
 '
         # shellcheck disable=SC2086
         for f in $TEMPLATE_FILES; do
+          is_finder_duplicate "$f" && continue
           [ -f "./$f" ] && continue
           mkdir -p "./$(dirname "$f")"
           cp "$TEMPLATE_DIR/$f" "./$f"
