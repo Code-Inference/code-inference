@@ -186,22 +186,20 @@ pre-commit and CI.
    `docker compose -f docker-compose-<agent>.yml config -q`, then build and run
    the service and confirm the agent reports its version.
 
-## Entrypoint: temporary duplication
+## Entrypoint
 
-`src/common/entrypoint.sh` is shared by the claude, codex, cursor and grok
-stacks, and ends in:
+`src/common/entrypoint.sh` is the single entrypoint for **all five** stacks,
+and ends in:
 
 ```sh
 exec "${AGENT_BIN:-opencode}" "$@"
 ```
 
-`src/opencode-stack/entrypoint.sh` is the pre-split copy still used by the
-opencode image, so that stack builds and behaves exactly as before. The two are
-identical apart from the header comment and that final line, and `AGENT_BIN` is
-unset in the opencode stack, so both run the same command.
+Each stack's Dockerfile sets `ENV AGENT_BIN=<binary>`. opencode sets nothing,
+so `${AGENT_BIN:-opencode}` resolves to `opencode` — one file, no per-agent
+variants, and a bootstrap fix lands once instead of five times.
 
-This duplication is a transition state, not a design. While both exist, apply
-any logic change to **both** files, or run
-`./scripts/check-entrypoint-sync.sh` to catch a one-sided edit. The opencode
-stack can adopt the shared copy at any time; nothing depends on the duplicate
-remaining.
+The opencode stack kept a duplicate of this file while the stacks were being
+split out, so its image would be untouched. It was verified byte-identical in
+the built image and then removed, along with `scripts/check-entrypoint-sync.sh`,
+which existed only to catch one-sided edits between the two copies.

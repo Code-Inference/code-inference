@@ -60,7 +60,7 @@ pip install -r dev-requirements.txt && pre-commit install
 pre-commit run --all-files
 ```
 
-Hooks: template-sync, entrypoint-sync (local), trailing-whitespace, end-of-file-fixer,
+Hooks: template-sync (local), trailing-whitespace, end-of-file-fixer,
 check-yaml, check-added-large-files (500 KB max), ruff (with `--fix`), ruff-format, mypy.
 
 ### 2. Shellcheck (all shell scripts)
@@ -73,17 +73,19 @@ The launcher scripts are the user-facing entry points and are pure shell, so thi
 thing that checks them. `install.sh` originally had a `for cmd in docker` single-item loop,
 which this caught.
 
-### 3. Duplication guards
+### 3. Duplication guard
 
 ```
-./scripts/check-template-sync.sh    # shared template files identical across all 5 agents
-./scripts/check-entrypoint-sync.sh  # the two entrypoint copies agree
+./scripts/check-template-sync.sh   # shared template files identical across all 5 agents
 ```
 
-Both are pre-commit hooks and CI lint steps. They exist because the repository intentionally
-carries duplicated files — five per-agent templates sharing seven files, and two copies of the
-container entrypoint — and duplication without a check drifts silently. If one reports drift,
-copy the correct version to the others rather than editing the script.
+A pre-commit hook and a CI lint step. It exists because the repository intentionally carries
+duplicated files — five per-agent template folders sharing seven of them — and duplication
+without a check drifts silently. If it reports drift, copy the correct version to the others
+rather than editing the script.
+
+A second guard, `check-entrypoint-sync.sh`, protected the two container-entrypoint copies and
+was removed together with the duplicate.
 
 ### 4. Lint (ruff)
 
@@ -257,7 +259,6 @@ inference stack and are not per-agent. See [agents.md](agents.md#state-is-per-ag
 | `launch-fresh-<agent>.sh` | Builds the agent image if absent, then `docker run` standalone | No |
 | `start.sh` | Dispatches on `--agent` and mode to the launcher above | No |
 | `scripts/check-template-sync.sh` | Fails if shared template files differ between agents | No |
-| `scripts/check-entrypoint-sync.sh` | Fails if the two entrypoint copies drifted | No |
 | `Makefile` | build, test, up aliases | No |
 
 `restart.sh` takes the agent's compose basename via an internal `--compose` flag, passed by

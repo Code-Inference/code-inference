@@ -82,7 +82,7 @@ RUN mkdir -p \
     && chown -R opencode:opencode /home/opencode
 
 # Entrypoint: sets up profile, gh auth, git identity, then execs opencode
-COPY src/opencode-stack/entrypoint.sh /home/opencode/entrypoint.sh
+COPY src/common/entrypoint.sh /home/opencode/entrypoint.sh
 RUN chown opencode:opencode /home/opencode/entrypoint.sh && \
     chmod +x /home/opencode/entrypoint.sh
 
