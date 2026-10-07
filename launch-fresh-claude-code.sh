@@ -21,7 +21,7 @@ fi
 
 exec docker run -it --rm \
   --name claude_fresh \
-  -v "$ORIG_PWD":/workspace \
+  -v "$ORIG_PWD:/workspace" \
   -v claude_config:/home/claude/.config/claude \
   -v claude_data:/home/claude/.local/share/claude \
   -v claude_state:/home/claude/.local/state/claude \
