@@ -21,7 +21,7 @@ fi
 
 exec docker run -it --rm \
   --name cursor_fresh \
-  -v "$ORIG_PWD":/workspace \
+  -v "$ORIG_PWD:/workspace" \
   -v cursor_config:/home/cursor/.config/cursor-agent \
   -v cursor_data:/home/cursor/.local/share/cursor-agent \
   -v cursor_state:/home/cursor/.local/state/cursor-agent \

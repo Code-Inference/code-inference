@@ -21,7 +21,7 @@ fi
 
 exec docker run -it --rm \
   --name codex_fresh \
-  -v "$ORIG_PWD":/workspace \
+  -v "$ORIG_PWD:/workspace" \
   -v codex_config:/home/codex/.config/codex \
   -v codex_data:/home/codex/.local/share/codex \
   -v codex_state:/home/codex/.local/state/codex \
