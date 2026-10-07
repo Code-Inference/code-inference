@@ -125,6 +125,44 @@ agent mapping in one place.
 `--full-isolation` and `--disk-name`, and grants `docker.sock` + `privileged: true`
 + root. See [opencode-stack.md](opencode-stack.md#--privileged-running-opencode-inside-a-sandbox).
 
+## Switching in and out of `--full-isolation`
+
+The two compose stacks give the same volume names two different backends:
+
+| volume | default stack | `--full-isolation --disk-name EXT1TB` |
+|---|---|---|
+| `workspace`, `model_data` | bind `${PWD}` / `${PWD}/models` | identical |
+| `model_hf_data`, `training_data`, `<agent>_*` | local Docker volume | bind `/Volumes/<disk>/docker_data/...` |
+
+Compose prefixes every name with the project name (the directory basename), so
+both stacks produce e.g. `myproject_model_hf_data`. The names match; the storage
+behind them does not. Docker notices and stops to ask:
+
+```
+? Volume "myproject_model_hf_data" exists but doesn't match configuration in
+  compose file. Recreate (data will be lost)? (y/N)
+```
+
+**That warning is only half right, and the direction decides which half.**
+
+Coming *off* `--disk-name` — full-isolation, then default — **loses nothing.**
+The external-disk path is an ordinary directory that Docker never owns, so it is
+left untouched; compose just builds an empty local volume under the same name.
+Run with `--disk-name EXT1TB` again and it re-binds to that same directory with
+everything still in it. Verified directly: a marker file written through the
+bind survived the switch and came back on the return.
+
+Going the *other* way — default, then full-isolation — **does destroy data.**
+The local volume really is Docker's, and compose empties it to satisfy the new
+definition. Anything stored only in the default stack is gone.
+
+So if you see the prompt, `(y/N)` is safe in the first direction; in the second,
+copy anything you want to keep out of the default stack first. Note the
+HuggingFace cache is the thing most likely to bite: `model_hf_data` is
+project-scoped as a local volume but shared across every project as
+`common_model_hf_data` on the external disk, so leaving full-isolation and coming
+back re-reads the same cache rather than re-downloading ~540MB.
+
 ## `--fresh` builds from the Dockerfile
 
 `launch-fresh-<agent>.sh` builds `code-inference-<agent>-fresh` from
