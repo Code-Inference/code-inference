@@ -21,6 +21,8 @@ jobs:
         run: shellcheck -s sh start.sh restart.sh install.sh launch-*.sh scripts/*.sh
       - name: Agent templates in sync
         run: ./scripts/check-template-sync.sh
+      - name: Agent volumes carry the agent name
+        run: ./scripts/check-volume-naming.sh
       - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip
