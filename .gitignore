@@ -18,6 +18,10 @@ opencode.json
 service.json
 sessions/
 .sessions/
+# Local scratch: captured build/test output kept for reference during a session.
+# Not repository content, and 50KB of container logs is not something to review
+# in a diff.
+.logs/
 **/.DS_Store/*
 .DS_Store
 # macOS AppleDouble and editor droppings. `._*` in particular: these get created
