@@ -114,7 +114,10 @@ Examples:
   code-inference --agent codex --full-isolation --disk-name EXT1TB
   code-inference --agent cursor --restart
 
-Everything after -- is passed to the agent.
+Options also accept the --name=value form: --agent=claude, --disk-name=EXT1TB.
+Anything after -- is passed to the agent. An unrecognised flag is an error
+rather than being ignored, so a typo cannot silently run a different agent at a
+different privilege level.
 Each agent gets its own user, home, volumes and project templates, so
 credentials, session history and settings never collide between agents.
 EOF
@@ -127,6 +130,45 @@ EOF
 # argument goes to the agent.
 AGENT="$DEFAULT_AGENT"
 
+# Check the whole flag vocabulary up front, without consuming anything.
+#
+# The loops below stop at the first argument they do not recognise and forward
+# the remainder to the launcher, which repeats the trick. So a single
+# unrecognised flag used to swallow every wrapper flag after it -- including
+# --privileged and --disk-name -- and hand them to the agent instead. A typo
+# silently ran the wrong agent at the wrong privilege level; only the agent's
+# own "Unrecognized flag" error gave it away.
+#
+#   code-inference --claude --full-isolation --disk-name EXT1TB --privileged
+#     -> ran opencode, non-privileged, and passed all four flags to it
+#
+# Validating rather than consuming is deliberate: --disk-name needs its value
+# left in place for the launcher, so the flags stay in "$@" untouched and only
+# the vocabulary is checked. Flags meant for the agent go after --.
+validate_options() {
+  for arg in "$@"; do
+    case "$arg" in
+      --) return 0 ;; # everything past -- belongs to the agent
+      --agent=* | --disk-name=*) continue ;;
+      -*)
+        case "$arg" in
+          --fresh | --restart | --full-isolation | --agent | --help | -h) continue ;;
+          # Parsed by the launcher and restart.sh, which start.sh dispatches to.
+          --disk-name | --privileged | --purge) continue ;;
+          *)
+            echo "Error: unknown option '$arg'." >&2
+            echo "       Flags for the agent go after --." >&2
+            echo "       Try 'code-inference --help'." >&2
+            exit 2
+            ;;
+        esac
+        ;;
+    esac
+  done
+}
+
+validate_options "$@"
+
 case "${1:-}" in
   --agent)
     if [ -z "${2:-}" ]; then
@@ -137,6 +179,13 @@ case "${1:-}" in
     validate_agent "$2"
     AGENT="$2"
     shift 2
+    ;;
+  # --agent=NAME is accepted alongside --agent NAME. Missing it silently ran
+  # opencode, since the unrecognised --agent was forwarded to the agent.
+  --agent=*)
+    validate_agent "${1#--agent=}"
+    AGENT="${1#--agent=}"
+    shift
     ;;
 esac
 
@@ -159,7 +208,7 @@ while [ $# -gt 0 ]; do
       FULL_ISOLATION=1
       shift
       ;;
-    --agent)
+    --agent | --agent=*)
       echo "Error: --agent must be the first argument." >&2
       echo "       It selects the agent and its project templates, so it cannot" >&2
       echo "       follow a mode flag and still be unambiguous." >&2
@@ -312,7 +361,16 @@ fi
 if [ "$RESTART" -eq 1 ]; then
   # restart.sh selects the agent's compose file from the basename passed here, so
   # the agent mapping stays in this script rather than being duplicated.
-  exec "$SCRIPT_DIR/restart.sh" --compose "$(agent_compose "$AGENT")" "$@"
+  #
+  # --full-isolation has to be passed on explicitly: the loop above consumed it,
+  # so restart.sh never saw it and its "FULL_ISOLATION && DISK_NAME" test was
+  # always false. --restart --full-isolation silently restarted the shared,
+  # non-isolated stack instead of the project's own.
+  RESTART_ISOLATION=""
+  [ "$FULL_ISOLATION" -eq 1 ] && RESTART_ISOLATION="--full-isolation"
+  # shellcheck disable=SC2086  # empty-or-one-word expansion is the point
+  exec "$SCRIPT_DIR/restart.sh" --compose "$(agent_compose "$AGENT")" \
+    $RESTART_ISOLATION "$@"
 fi
 
 if [ "$FULL_ISOLATION" -eq 1 ]; then
