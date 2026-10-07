@@ -21,7 +21,7 @@ fi
 
 exec docker run -it --rm \
   --name grok_fresh \
-  -v "$ORIG_PWD":/workspace \
+  -v "$ORIG_PWD:/workspace" \
   -v grok_config:/home/grok/.config/grok \
   -v grok_data:/home/grok/.local/share/grok \
   -v grok_state:/home/grok/.local/state/grok \

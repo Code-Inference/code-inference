@@ -87,6 +87,14 @@ while [ $# -gt 0 ]; do
       DISK_NAME="$2"
       shift 2
       ;;
+    --disk-name=*)
+      if [ -z "${1#--disk-name=}" ]; then
+        echo "Error: --disk-name requires a value." >&2
+        exit 2
+      fi
+      DISK_NAME="${1#--disk-name=}"
+      shift
+      ;;
     --privileged)
       PRIVILEGED=1
       shift

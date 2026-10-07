@@ -26,6 +26,28 @@ It is an error rather than a silent fallback, because silently running opencode
 when you asked for Claude Code is worse than refusing. `DEFAULT_AGENT` in
 `start.sh` states the fallback in one place; change it there.
 
+## Unknown flags are an error
+
+An unrecognised flag is rejected rather than ignored:
+
+```bash
+code-inference --claude --full-isolation    # Error: unknown option '--claude'.
+code-inference --agent=claude --fresh       # ok, --agent=NAME also accepted
+code-inference --fresh -- --model foo       # ok, agent flags go after --
+```
+
+This matters because of what the alternative did. The parse loops stopped at the
+first argument they did not recognise and handed the rest to the agent, so a
+single typo swallowed every wrapper flag after it — `--privileged`,
+`--full-isolation`, `--disk-name` included — and passed them to the agent
+instead. The failure was silent in the worst way: the wrong agent started, at a
+lower privilege level than requested, and only the agent's own `Unrecognized
+flag` output hinted at the cause. `--agent=NAME` failed the same way, since
+only the space form was recognised, and it defaulted to opencode.
+
+`start.sh` validates the whole flag vocabulary up front without consuming
+anything, so `--disk-name` still reaches the launcher with its value intact.
+
 ## Supported agents
 
 | | opencode | claude | cursor | codex | grok |

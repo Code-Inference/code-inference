@@ -7,6 +7,12 @@ repos:
         language: script
         pass_filenames: false
 
+      - id: volume-naming
+        name: agent volumes carry the agent name
+        entry: scripts/check-volume-naming.sh
+        language: script
+        pass_filenames: false
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
