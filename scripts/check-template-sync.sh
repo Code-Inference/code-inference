@@ -4,7 +4,7 @@
 #
 # The templates are separate folders on purpose: each agent needs its own
 # instruction file at its own path (CLAUDE.md, AGENTS.md, .cursor/rules/*.mdc).
-# The rest -- git workflow, the ghw skill, pre-commit, dev requirements, CI
+# The rest -- git workflow, the bundled skills, pre-commit, dev requirements, CI
 # workflows -- is agent-neutral and must not drift, or two agents would end up
 # working from different rules in the same repository.
 #
@@ -15,15 +15,31 @@ set -e
 
 cd "$(dirname "$0")/.." || exit 1
 
+# Bundled skills: ghw (git workflow) plus the five Vibe Leading skills. Each
+# ships SKILL.md and LICENSE.
+SKILLS="ghw
+mission-script
+ira-prompting
+hud-setup
+pit-stop-audit
+org-geometry"
+
 SHARED="docs/git-workflow.md
 .pre-commit-config.yaml
 dev-requirements.txt
-.agents/skills/ghw/SKILL.md
-.agents/skills/ghw/LICENSE
 .github/workflows/ci.yml
 .github/workflows/main-pr-source.yml
 .github/workflows/open-pr-to-development.yml
 .github/workflows/publish.yml"
+
+# Every template carries each skill at .agents/skills/, the path OpenCode,
+# Cursor, Codex and Pi read.
+# shellcheck disable=SC2086  # SKILLS is a newline-separated list, split on purpose
+for s in $SKILLS; do
+  SHARED="$SHARED
+.agents/skills/$s/SKILL.md
+.agents/skills/$s/LICENSE"
+done
 
 status=0
 
@@ -64,32 +80,33 @@ if [ "$status" -eq 0 ]; then
   echo "template-sync OK: shared files identical across all agent templates"
 fi
 
-# ── ghw skill copies ─────────────────────────────────────────────────────────
-# Every template carries the ghw skill at .agents/skills/, the path OpenCode,
-# Cursor, Codex and Pi read. Claude, Grok Build and Hermes read skills only from
-# their own dotdir, so those three templates carry a second copy there. The
-# copies hold the same bytes at different paths, and the same-path check above
-# cannot see them drift -- compare the agent-specific copies to the canonical
-# one instead.
+# ── agent-specific skill copies ──────────────────────────────────────────────
+# Claude, Grok Build and Hermes read skills only from their own dotdir, so those
+# three templates carry a second copy there. The copies hold the same bytes at
+# different paths, and the same-path check above cannot see them drift --
+# compare the agent-specific copies to the canonical one instead.
 
 for entry in "claude-default:.claude" "grok-default:.grok" "hermes-default:.hermes"; do
   d="templates/${entry%%:*}"
   root="${entry#*:}"
-  for f in SKILL.md LICENSE; do
-    canonical="$d/.agents/skills/ghw/$f"
-    specific="$d/$root/skills/ghw/$f"
-    if [ ! -f "$specific" ]; then
-      echo "MISSING  ${specific#templates/} (agent-specific skill copy)"
-      status=1
-    elif ! cmp -s "$canonical" "$specific"; then
-      echo "DRIFT    ${specific#templates/} differs from ${canonical#templates/}"
-      status=1
-    fi
+  # shellcheck disable=SC2086  # SKILLS is a newline-separated list, split on purpose
+  for s in $SKILLS; do
+    for f in SKILL.md LICENSE; do
+      canonical="$d/.agents/skills/$s/$f"
+      specific="$d/$root/skills/$s/$f"
+      if [ ! -f "$specific" ]; then
+        echo "MISSING  ${specific#templates/} (agent-specific skill copy)"
+        status=1
+      elif ! cmp -s "$canonical" "$specific"; then
+        echo "DRIFT    ${specific#templates/} differs from ${canonical#templates/}"
+        status=1
+      fi
+    done
   done
 done
 
 if [ "$status" -eq 0 ]; then
-  echo "template-sync OK: ghw skill copies identical at every discovery path"
+  echo "template-sync OK: skill copies identical at every discovery path"
 fi
 
 exit "$status"

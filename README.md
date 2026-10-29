@@ -137,13 +137,15 @@ Agent services exist only in their own compose file — `claude` is defined in
 
 `code-inference` offers to create missing workspace files from `templates/<agent>-default`
 when you launch an agent in a new project. Files shared by all seven templates
-(`docs/git-workflow.md`, `.agents/skills/ghw/`, `.pre-commit-config.yaml`,
+(`docs/git-workflow.md`, `.agents/skills/*`, `.pre-commit-config.yaml`,
 `dev-requirements.txt`, `.github/workflows/`) must stay byte-identical;
 `scripts/check-template-sync.sh` enforces that in pre-commit and CI.
 
-The templates also ship the **GHW** git-workflow skill (vendored from
-[agentic-framework-skills/GHW](https://github.com/agentic-framework-skills/GHW), MIT), so
-skill-aware agents find the workflow without being told to read a document.
+The templates also ship six skills, so skill-aware agents find them without being told to
+read a document: **GHW** for the git workflow
+([agentic-framework-skills/GHW](https://github.com/agentic-framework-skills/GHW)) and the
+five [Vibe Leading](https://vibeleading.org/) methodology skills. All MIT; see
+[docs/vibeleading.md](docs/vibeleading.md).
 
 ### Quick start (development)
 
