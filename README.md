@@ -41,6 +41,7 @@ code-inference --agent hermes               # Hermes Agent
 code-inference --agent pi                   # Pi coding agent
 
 code-inference --agent claude --fresh       # agent alone, no inference stack
+code-inference --template workspace         # multi-repo workspace scaffold
 code-inference --agent codex --restart      # restart that agent's stack
 ```
 
@@ -136,7 +137,9 @@ Agent services exist only in their own compose file — `claude` is defined in
 ### Project templates
 
 `code-inference` offers to create missing workspace files from `templates/<agent>-default`
-when you launch an agent in a new project. Files shared by all seven templates
+when you launch an agent in a new project. `--template workspace` creates the multi-repo
+scaffold from `templates/workspace` instead: the root is scaffolding and each subfolder is
+its own git repository. Files shared by all templates
 (`docs/git-workflow.md`, `.agents/skills/*`, `.pre-commit-config.yaml`,
 `dev-requirements.txt`, `.github/workflows/`) must stay byte-identical;
 `scripts/check-template-sync.sh` enforces that in pre-commit and CI.

@@ -285,6 +285,38 @@ Two details worth knowing:
   before committing. It is not auto-loaded; claiming otherwise would be
   misleading.
 
+### Selecting a scaffold: `--template`
+
+The bootstrap above is the default scaffold. `--template workspace` creates a
+multi-repo workspace instead:
+
+```bash
+code-inference --template workspace
+code-inference --agent claude --template workspace
+```
+
+| Template | Folder | For |
+|---|---|---|
+| `default` | `templates/<agent>-default/` | one project in the current directory |
+| `workspace` | `templates/workspace/` | many repositories side by side |
+
+The workspace scaffold is one folder for every agent, not one per agent. Its
+root is **scaffolding, not code**: `.gitignore` ignores every subfolder (`/*/`)
+and re-includes the scaffold directories, so each project directory is its own
+git repository that the root never tracks. Its instructions file says the same
+thing — the root holds the instructions, the git workflow, CI templates,
+pre-commit config, dev requirements, the bundled skills and `opencode.json`;
+projects live in subfolders with their own instructions and tooling.
+
+Because the same folder serves every agent, it ships its instructions under both
+names, `AGENTS.md` and `CLAUDE.md`, byte-identical. The bootstrap offers only the
+one the selected agent reads — Claude Code takes `CLAUDE.md`, every other agent
+takes `AGENTS.md` — so a project never carries two copies of the same text.
+
+`--template` only affects the bootstrap: `--fresh` and `--restart` do not start
+the agent in this workspace, and the flag says so on stderr rather than being
+silently ignored.
+
 ### Bundled skills
 
 Every template ships six skills: `ghw` for the git workflow, and the five

@@ -768,6 +768,28 @@ A plain `.md` in `.cursor/rules` is ignored by Cursor — the extension must be 
 frontmatter. Codex, Grok, Hermes and Pi have no rules directory, so their templates reference
 `docs/git-workflow.md` instead of pretending it is auto-loaded.
 
+### `templates/workspace/` — the multi-repo scaffold
+
+`--template workspace` uses this folder instead of the per-agent default. It is one folder for
+every agent, so it carries the union of the per-agent extras: `opencode.json` and
+`.opencode/instructions/`, the `.cursor/rules` file, and the `.claude/`, `.grok/` and
+`.hermes/` skill copies, alongside the shared files.
+
+Two things make it a workspace rather than a project:
+
+- `.gitignore` ignores every root subdirectory (`/*/`) and re-includes the scaffold
+  directories. Each project subfolder is therefore its own git repository, which the root
+  never tracks — clone, branch and commit inside `./api` and the workspace repo stays clean.
+  The negations must list every scaffold directory the template ships; a new root directory
+  needs a matching `!/` line or it will not be committed.
+- `AGENTS.md` and `CLAUDE.md` hold the same instructions under both names, because the folder
+  is used with any agent. The bootstrap offers only the one the selected agent reads: Claude
+  Code takes `CLAUDE.md`, every other agent takes `AGENTS.md`.
+
+`check-template-sync.sh` treats it as a template: its shared files must match the agent
+defaults byte for byte, its three agent-specific skill copies must match its own `.agents/`
+copy, and its two instruction files must match each other.
+
 ### Bundled skills
 
 Six skills travel with every template: `ghw` (git workflow) and the five
