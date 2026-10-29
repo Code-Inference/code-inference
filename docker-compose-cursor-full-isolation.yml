@@ -126,6 +126,8 @@ services:
     build:
       context: .
       dockerfile: src/cursor-stack/Dockerfile
+      args:
+        - CURSOR_VERSION
     stdin_open: true   # -i (interactive)
     tty: true           # -t (pseudo-TTY)
     user: cursor
@@ -156,6 +158,8 @@ services:
     build:
       context: .
       dockerfile: src/cursor-stack/Dockerfile_privileged
+      args:
+        - CURSOR_VERSION
     stdin_open: true   # -i (interactive)
     tty: true           # -t (pseudo-TTY)
     user: root

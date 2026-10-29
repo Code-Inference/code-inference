@@ -121,6 +121,8 @@ services:
     build:
       context: .
       dockerfile: src/codex-stack/Dockerfile
+      args:
+        - CODEX_VERSION
     stdin_open: true   # -i (interactive)
     tty: true           # -t (pseudo-TTY)
     user: codex

@@ -125,7 +125,9 @@ services:
       - stack
     build:
       context: .
-      dockerfile: src/grok-build-stack/Dockerfile
+      dockerfile: src/grok-stack/Dockerfile
+      args:
+        - GROK_VERSION
     stdin_open: true   # -i (interactive)
     tty: true           # -t (pseudo-TTY)
     user: grok
@@ -155,7 +157,9 @@ services:
       - stack_privileged
     build:
       context: .
-      dockerfile: src/grok-build-stack/Dockerfile_privileged
+      dockerfile: src/grok-stack/Dockerfile_privileged
+      args:
+        - GROK_VERSION
     stdin_open: true   # -i (interactive)
     tty: true           # -t (pseudo-TTY)
     user: root

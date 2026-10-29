@@ -23,6 +23,8 @@ jobs:
         run: ./scripts/check-template-sync.sh
       - name: Agent volumes carry the agent name
         run: ./scripts/check-volume-naming.sh
+      - name: Compose build paths and version args
+        run: ./scripts/check-compose-dockerfiles.sh
       - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip

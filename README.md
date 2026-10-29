@@ -58,6 +58,21 @@ and `privileged: true`, so it can spawn nested containers — the container beco
 boundary instead of running the agent directly on your host. See
 [docs/opencode-stack.md](docs/opencode-stack.md#--privileged-running-opencode-inside-a-sandbox).
 
+### Pinning an agent version
+
+Each agent's tool version is a build arg, so it can be pinned per run without editing a
+Dockerfile:
+
+```bash
+OPENCODE_VERSION=2.0.30 code-inference --agent opencode --full-isolation --privileged \
+  --disk-name EXT1TB -- -c
+```
+
+The variables are `OPENCODE_VERSION`, `CLAUDE_CODE_VERSION`, `CURSOR_VERSION`, `CODEX_VERSION`
+and `GROK_VERSION`; put one in `.env` to pin it persistently. See
+[docs/settings.md](docs/settings.md#agent-version-pinning) for the defaults, and for the `.env`
+caveat on opencode's `v`-prefixed release names.
+
 ## How it works
 
 `code-inference` is a thin wrapper around `docker compose` from this repo. It:

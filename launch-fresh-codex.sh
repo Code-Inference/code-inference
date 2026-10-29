@@ -14,9 +14,19 @@ ORIG_PWD="$PWD"
 
 IMAGE="code-inference-codex-fresh"
 
-if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  echo ">>> Building $IMAGE from src/codex-stack/Dockerfile (first run)..."
-  docker build -t "$IMAGE" -f "$SCRIPT_DIR/src/codex-stack/Dockerfile" "$SCRIPT_DIR"
+# CODEX_VERSION pins the installed tool. Unset means the Dockerfile's ARG
+# default applies, so nothing is passed and the default stays in one place. A
+# pinned run rebuilds every time: the layer cache makes that cheap, and an image
+# existing is not evidence that it was built with this version.
+BUILD_ARGS=""
+if [ -n "${CODEX_VERSION:-}" ]; then
+  BUILD_ARGS="--build-arg CODEX_VERSION=$CODEX_VERSION"
+fi
+
+if [ -n "$BUILD_ARGS" ] || ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  echo ">>> Building $IMAGE from src/codex-stack/Dockerfile..."
+  # shellcheck disable=SC2086  # BUILD_ARGS is a literal flag list; a version has no spaces
+  docker build -t "$IMAGE" $BUILD_ARGS -f "$SCRIPT_DIR/src/codex-stack/Dockerfile" "$SCRIPT_DIR"
 fi
 
 # --ephemeral and --ephemeral-keep-auth are wrapper flags, consumed here rather
