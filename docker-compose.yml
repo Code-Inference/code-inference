@@ -55,6 +55,12 @@ services:
       - inference
     image: ghcr.io/ggml-org/llama.cpp:server
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     volumes:
       - model_hf_data:/root/.cache/huggingface:rw
     command:
