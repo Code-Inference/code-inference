@@ -126,6 +126,8 @@ Each agent stack takes its tool version as a build arg, so it can be pinned per 
 | cursor | `CURSOR_VERSION` | `2026.10.01` |
 | codex | `CODEX_VERSION` | `0.160.0` |
 | grok | `GROK_VERSION` | `1.0.46` |
+| hermes | `HERMES_VERSION` | `0.19.0` |
+| pi | `PI_VERSION` | `1.4.0` |
 
 ```bash
 OPENCODE_VERSION=2.0.30 code-inference --agent opencode --full-isolation --privileged \
@@ -137,7 +139,7 @@ default, so when the variable is unset no build arg is sent and the Dockerfile's
 the single source of truth; when it is set, compose passes it verbatim. Because the value is
 part of the build config, changing it rebuilds the agent image on the next `--build`.
 
-`--fresh` uses the same variables: the four build-based launchers pass
+`--fresh` uses the same variables: the six build-based launchers pass
 `--build-arg <VAR>=<value>` to `docker build`, and `launch-fresh-opencode.sh` swaps the base
 image tag. While a version is set, a `--fresh` launch rebuilds every time (the layer cache
 makes that cheap), because an existing image tag does not prove which version produced it.
@@ -145,7 +147,7 @@ makes that cheap), because an existing image tag does not prove which version pr
 `OPENCODE_VERSION` exported in the **shell** also accepts a leading `v` (`v2.0.30`), which the
 launcher strips: opencode tags its releases `v2.0.30` but publishes images as `2.0.30`. In
 `.env` the value is substituted by compose directly, so write the image tag there
-(`OPENCODE_VERSION=2.0.30`); a shell export takes precedence over `.env`. The other four
+(`OPENCODE_VERSION=2.0.30`); a shell export takes precedence over `.env`. The other six
 variables are passed to their installers verbatim, so use the format each tool publishes.
 
 Compose reads `.env` from this repository, not from the project you launch in, so one pin
@@ -615,8 +617,8 @@ Environment on the agent service:
 shared inference stack.
 
 **Full-isolation files** add `<agent>_privileged` (profile `stack_privileged`,
-`privileged: true`, `user: root`, plus a `docker.sock` bind) and move the five volumes to
-bind mounts on `/Volumes/${DISK_NAME:-EXT1TB}/docker_data/${NAME_SUFFIX:-common}_<volume>`.
+`privileged: true`, `user: root`, plus a `docker.sock` bind) and move the five per-agent
+volumes to bind mounts on `/Volumes/${DISK_NAME:-EXT1TB}/docker_data/${NAME_SUFFIX:-common}_<volume>`.
 The launcher creates those host paths first — Docker cannot create a missing bind target.
 
 ---
@@ -630,26 +632,26 @@ from `github.repository`, so it follows a repository move with no change here.
 
 | Setting | Value |
 |---------|-------|
-| Jobs | one matrix entry per agent (`opencode`, `claude`, `cursor`, `codex`, `grok`) |
+| Jobs | one matrix entry per agent (`opencode`, `claude`, `cursor`, `codex`, `grok`, `hermes`, `pi`) |
 | `fail-fast` | `false` — one agent failing must not hide the others' results |
 | Dockerfiles | `src/<agent>-stack/Dockerfile` per matrix entry |
 | Build cache | `type=gha`, per-agent scope |
 
 **Tag scheme.** opencode keeps the bare tags so existing references such as `:1.6.0` still
-resolve to the default image; the other four are suffixed:
+resolve to the default image; the other six are suffixed:
 
-| Tag | opencode | claude | cursor | codex | grok |
-|-----|----------|--------|--------|------|------|
-| `latest` | yes | `latest-claude` | `latest-cursor` | `latest-codex` | `latest-grok` |
-| version | `1.6.0` | `1.6.0-claude` | `1.6.0-cursor` | `1.6.0-codex` | `1.6.0-grok` |
-| major.minor | `1.6` | `1.6-claude` | `1.6-cursor` | `1.6-codex` | `1.6-grok` |
-| sha | `570f391` | `570f391-claude` | `570f391-cursor` | `570f391-codex` | `570f391-grok` |
+| Tag | opencode | claude | cursor | codex | grok | hermes | pi |
+|-----|----------|--------|--------|------|------|--------|----|
+| `latest` | yes | `latest-claude` | `latest-cursor` | `latest-codex` | `latest-grok` | `latest-hermes` | `latest-pi` |
+| version | `1.6.0` | `1.6.0-claude` | `1.6.0-cursor` | `1.6.0-codex` | `1.6.0-grok` | `1.6.0-hermes` | `1.6.0-pi` |
+| major.minor | `1.6` | `1.6-claude` | `1.6-cursor` | `1.6-codex` | `1.6-grok` | `1.6-hermes` | `1.6-pi` |
+| sha | `570f391` | `570f391-claude` | `570f391-cursor` | `570f391-codex` | `570f391-grok` | `570f391-hermes` | `570f391-pi` |
 
 Two shared-tag rules exist because both were broken in v1.7.x, and neither is obvious:
 
 **`latest` is opencode's, written by one step.** It is not in the metadata tag list at all.
 metadata-action's `enable=` did not suppress it — on a `v*` tag push **every** job emitted a
-bare `latest`, five jobs raced on the one shared tag, and the last writer won. That is how
+bare `latest`, every job raced for the one shared tag, and the last writer won. That is how
 `latest` ended up pointing at the **cursor** image in both v1.7.2 and v1.7.3. A step-level
 `if: matrix.agent == 'opencode' && github.ref == 'refs/heads/main'` is honoured where
 `enable=` was not, and `docker buildx imagetools create` re-tags the manifest just pushed, so
@@ -755,7 +757,7 @@ Every template also ships `docs/git-workflow.md`, `.pre-commit-config.yaml`,
 `dev-requirements.txt` and `.github/workflows/*.yml`.
 
 A plain `.md` in `.cursor/rules` is ignored by Cursor — the extension must be `.mdc` with
-frontmatter. Codex and Grok have no rules directory, so their templates reference
+frontmatter. Codex, Grok, Hermes and Pi have no rules directory, so their templates reference
 `docs/git-workflow.md` instead of pretending it is auto-loaded.
 
 ---
@@ -764,13 +766,13 @@ frontmatter. Codex and Grok have no rules directory, so their templates referenc
 
 | Script | Fails when |
 |--------|------------|
-| `check-template-sync.sh` | A file shared by all five templates differs between them |
+| `check-template-sync.sh` | A file shared by all seven templates differs between them |
 | `check-volume-naming.sh` | A compose file gives an agent another agent's volume name |
 | `check-compose-dockerfiles.sh` | A compose file builds a Dockerfile that is not in the tree, an agent build block passes no version arg, or it passes an `ARG` its Dockerfile does not declare |
 
 They run as `pre-commit` hooks and CI lint steps, because the repository carries duplicated
-configuration that drifts silently: five per-agent template folders sharing the same files, five
-copies of each agent's volumes, and ten compose files naming the same handful of Dockerfiles.
+configuration that drifts silently: seven per-agent template folders sharing the same files, seven
+copies of each agent's volumes, and fourteen compose files naming the same handful of Dockerfiles.
 The last of those shipped broken — every grok compose file pointed at `src/grok-build-stack/`
 while the stack lived in `src/grok-stack/`, so `--agent grok` could not build at all.
 
@@ -783,7 +785,7 @@ removed along with the duplicate it protected.
 
 | Setting | Value |
 |---------|-------|
-| `AGENT_NAMES` | `opencode, claude, cursor, codex, grok` |
+| `AGENT_NAMES` | `opencode, claude, cursor, codex, grok, hermes, pi` |
 | `DEFAULT_AGENT` | `opencode` — used in every mode when `--agent` is absent |
 | `--agent` position | Must be the **first** argument |
 | `--ephemeral` | `--fresh` only; keeps no named volumes at all |
@@ -799,7 +801,8 @@ code-inference --fresh --agent claude    # Error: --agent must be the first argu
 
 Four lookup functions hold the single source of truth for agent names:
 `agent_template_dir`, `agent_compose`, `agent_launcher` and `agent_fresh_launcher`. Adding an
-agent means adding it to all four plus `AGENT_NAMES`. `--restart` receives the compose
+agent means adding it to all four plus `AGENT_NAMES` — in `start.sh` and, for the
+`--fresh` volume cross-check, `scripts/check-volume-naming.sh`. `--restart` receives the compose
 basename via `restart.sh --compose`, so `restart.sh` needs no agent mapping of its own.
 
 `--ephemeral` and `--ephemeral-keep-auth` are modifiers on `--fresh`: each is rejected without

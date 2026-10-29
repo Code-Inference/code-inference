@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Shared bootstrap script for every agent stack (opencode, claude, codex,
-# cursor, grok).
+# cursor, grok, hermes, pi).
 # Run after container rebuild to restore tooling config.
 #
 # The agent binary to exec is taken from AGENT_BIN, defaulting to opencode,

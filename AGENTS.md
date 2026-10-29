@@ -28,7 +28,7 @@ Git workflow: see `.opencode/instructions/git-workflow.md` (loaded via `opencode
 
 - **Entrypoint:** `src/services/api/app/main.py:22` — FastAPI app. Routes: `GET /health`, `GET /health/ready` (pings inference `/v1/models`), `POST /v1/chat/completions` (proxies after prompt processing).
 - **Request flow:** agent → api (RUT mask, truncate, tag) → inference (llama.cpp). Three-hop chain on `internal` network.
-- **Agents:** opencode (default), claude, cursor, codex, grok — selected by `code-inference --agent NAME` (`--agent` must be the **first** argument). Each has its own compose file, launcher, stack dir, user/home and volumes. See `docs/agents.md`.
+- **Agents:** opencode (default), claude, cursor, codex, grok, hermes, pi — selected by `code-inference --agent NAME` (`--agent` must be the **first** argument). Each has its own compose file, launcher, stack dir, user/home and volumes. See `docs/agents.md`.
 - **Compose profiles:** `stack` (inference+api+agent, default), `tools` (agent CLI), `alternate-inference` (vLLM, **not wired** to `internal` network), `stack_privileged` (full-isolation files only).
 - **Only inference (llama.cpp) is production-ready.** Other backends (vllm, ollama) are experimental stubs.
 - **Prompt processing:** `src/services/api/app/prompt.py` — RUT masking via regex `_RUT_RE`, char-level truncation (last user message only, appends `…[truncated]`), intent tagging.

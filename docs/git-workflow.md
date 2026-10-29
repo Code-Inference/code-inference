@@ -7,8 +7,8 @@ version loaded into context; where the two differ, this document wins.
 **Why this file exists:** the agent instructions referenced `docs/git-workflow.md`
 as normative in six places while no such file existed, so the rules agents
 follow pointed at nothing. If you change the workflow, change it here first and
-then mirror it into the instruction file and the five
-`templates/*-default/.opencode/instructions/git-workflow.md` copies.
+then mirror it into `.opencode/instructions/git-workflow.md` and the
+`templates/*-default/` copies that ship one.
 
 ## 1. Branch model
 
