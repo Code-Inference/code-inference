@@ -87,6 +87,13 @@ rather than editing the script.
 A second guard, `check-entrypoint-sync.sh`, protected the two container-entrypoint copies and
 was removed together with the duplicate.
 
+Two sibling guards cover the other copy-paste surfaces. `check-volume-naming.sh` requires each
+agent's volumes to carry that agent's name, so one agent's credentials and session history are
+never reachable from another's stack. `check-compose-dockerfiles.sh` requires every `dockerfile:`
+path named by a compose file to exist and every agent build block to forward the version `ARG`
+its Dockerfile declares — that one was added after all five grok compose files turned out to
+point at a `src/grok-build-stack/` that never existed, so `--agent grok` could not build.
+
 ### 4. Lint (ruff)
 
 ```
@@ -260,6 +267,8 @@ inference stack and are not per-agent. See [agents.md](agents.md#state-is-per-ag
 | `launch-fresh-<agent>.sh` | Builds the agent image if absent, then `docker run` standalone | No |
 | `start.sh` | Dispatches on `--agent` and mode to the launcher above | No |
 | `scripts/check-template-sync.sh` | Fails if shared template files differ between agents | No |
+| `scripts/check-volume-naming.sh` | Fails if an agent's volumes are not named after it | No |
+| `scripts/check-compose-dockerfiles.sh` | Fails if a compose build path is missing or an agent version arg is undeclared | No |
 | `Makefile` | build, test, up aliases | No |
 
 `restart.sh` takes the agent's compose basename via an internal `--compose` flag, passed by

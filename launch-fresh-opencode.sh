@@ -19,7 +19,12 @@
 set -e
 
 ORIG_PWD="$PWD"
-IMAGE="ghcr.io/anomalyco/opencode:2.0.22"
+
+# OPENCODE_VERSION pins the base image. Its releases are tagged v2.0.30 while the
+# published image tags omit the `v`, so a leading one is stripped. Unset keeps the
+# same default as src/opencode-stack/Dockerfile.
+OPENCODE_TAG="${OPENCODE_VERSION:-2.0.22}"
+IMAGE="ghcr.io/anomalyco/opencode:${OPENCODE_TAG#v}"
 
 # Consumed here rather than forwarded: the first other argument, and everything
 # after it, belongs to the agent.

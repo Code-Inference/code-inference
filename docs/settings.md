@@ -114,6 +114,43 @@ NOTE: `pytest` is a runtime dep because it's installed in the production image t
 
 `.env` is gitignored; copy from `.env.example`.
 
+### Agent version pinning
+
+Each agent stack takes its tool version as a build arg, so it can be pinned per run or in
+`.env` without editing a Dockerfile:
+
+| Agent | Variable | Dockerfile ARG default |
+|---|---|---|
+| opencode | `OPENCODE_VERSION` | `2.0.22` |
+| claude | `CLAUDE_CODE_VERSION` | `2.1.289` |
+| cursor | `CURSOR_VERSION` | `2026.10.01` |
+| codex | `CODEX_VERSION` | `0.160.0` |
+| grok | `GROK_VERSION` | `1.0.46` |
+
+```bash
+OPENCODE_VERSION=2.0.30 code-inference --agent opencode --full-isolation --privileged \
+  --disk-name EXT1TB -- -c
+```
+
+Every `docker-compose*.yml` declares the arg as a **bare list entry** rather than with a
+default, so when the variable is unset no build arg is sent and the Dockerfile's `ARG` stays
+the single source of truth; when it is set, compose passes it verbatim. Because the value is
+part of the build config, changing it rebuilds the agent image on the next `--build`.
+
+`--fresh` uses the same variables: the four build-based launchers pass
+`--build-arg <VAR>=<value>` to `docker build`, and `launch-fresh-opencode.sh` swaps the base
+image tag. While a version is set, a `--fresh` launch rebuilds every time (the layer cache
+makes that cheap), because an existing image tag does not prove which version produced it.
+
+`OPENCODE_VERSION` exported in the **shell** also accepts a leading `v` (`v2.0.30`), which the
+launcher strips: opencode tags its releases `v2.0.30` but publishes images as `2.0.30`. In
+`.env` the value is substituted by compose directly, so write the image tag there
+(`OPENCODE_VERSION=2.0.30`); a shell export takes precedence over `.env`. The other four
+variables are passed to their installers verbatim, so use the format each tool publishes.
+
+Compose reads `.env` from this repository, not from the project you launch in, so one pin
+applies to every project.
+
 ---
 
 ## `.dockerignore` — Docker build context exclusion
@@ -461,10 +498,12 @@ order:
 
 1. `shellcheck -s sh start.sh restart.sh install.sh launch-*.sh scripts/*.sh`
 2. `./scripts/check-template-sync.sh`
-3. `ruff check`, `ruff format --check .`, `mypy src/`
+3. `./scripts/check-volume-naming.sh`
+4. `./scripts/check-compose-dockerfiles.sh`
+5. `ruff check`, `ruff format --check .`, `mypy src/`
 
-Steps 1–2 need no Python and run before the install, so a shell or duplication failure is
-reported in seconds. NOTE: a PR that modifies `.github/workflows/**` is held by GitHub for
+Steps 1–4 need no Python and run before the install, so a shell, duplication, volume or
+compose-path failure is reported in seconds. NOTE: a PR that modifies `.github/workflows/**` is held by GitHub for
 maintainer approval before any job runs, and shows as `action_required` with no jobs.
 
 **test job:** Installs only `src/services/api/requirements.txt`. Runs `pytest -v`.
@@ -726,10 +765,14 @@ frontmatter. Codex and Grok have no rules directory, so their templates referenc
 | Script | Fails when |
 |--------|------------|
 | `check-template-sync.sh` | A file shared by all five templates differs between them |
+| `check-volume-naming.sh` | A compose file gives an agent another agent's volume name |
+| `check-compose-dockerfiles.sh` | A compose file builds a Dockerfile that is not in the tree, an agent build block passes no version arg, or it passes an `ARG` its Dockerfile does not declare |
 
-It runs as the `template-sync` pre-commit hook and as a CI lint step, because the five
-per-agent template folders are separate copies of the same shared files, and duplication
-without a check drifts silently.
+They run as `pre-commit` hooks and CI lint steps, because the repository carries duplicated
+configuration that drifts silently: five per-agent template folders sharing the same files, five
+copies of each agent's volumes, and ten compose files naming the same handful of Dockerfiles.
+The last of those shipped broken — every grok compose file pointed at `src/grok-build-stack/`
+while the stack lived in `src/grok-stack/`, so `--agent grok` could not build at all.
 
 A former `check-entrypoint-sync.sh` guarded the two container-entrypoint copies and was
 removed along with the duplicate it protected.

@@ -126,6 +126,8 @@ services:
     build:
       context: .
       dockerfile: src/claude-stack/Dockerfile
+      args:
+        - CLAUDE_CODE_VERSION
     stdin_open: true   # -i (interactive)
     tty: true           # -t (pseudo-TTY)
     user: claude
@@ -156,6 +158,8 @@ services:
     build:
       context: .
       dockerfile: src/claude-stack/Dockerfile_privileged
+      args:
+        - CLAUDE_CODE_VERSION
     stdin_open: true   # -i (interactive)
     tty: true           # -t (pseudo-TTY)
     user: root
