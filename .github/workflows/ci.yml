@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Shellcheck launcher scripts
-        run: shellcheck -s sh start.sh restart.sh install.sh launch-*.sh scripts/*.sh
+        run: shellcheck -s sh start.sh restart.sh install.sh launch-*.sh scripts/*.sh src/common/entrypoint.sh
       - name: Agent templates in sync
         run: ./scripts/check-template-sync.sh
       - name: Agent volumes carry the agent name

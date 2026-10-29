@@ -78,8 +78,18 @@ if [ -t 0 ] && ! gh auth status >/dev/null 2>&1; then
   echo ">>> Starting device-code login flow..."
   echo ""
 
-  if [ ! -w "$HOME/.ssh" ] 2>/dev/null; then
-    echo ">>> ~/.ssh is not writable (Docker ro mount); using temp SSH dir..."
+  # gh generates a key under ~/.ssh and writes its token under ~/.config/gh, so
+  # both must be writable. Every compose stack bind-mounts the host's ~/.ssh
+  # read-only, and a plain bind mount is also unwritable here because the host
+  # uid differs from the container user's. --fresh opencode mounts no ~/.ssh at
+  # all, and its absence is a different situation: HOME is writable, so gh can
+  # simply create the directory.
+  #
+  # Test for a directory that exists *and* cannot be written to. Checking
+  # writability alone also fires when the path is absent, which diverted HOME for
+  # --fresh opencode and announced a "Docker ro mount" that did not exist.
+  if [ -d "$HOME/.ssh" ] && [ ! -w "$HOME/.ssh" ]; then
+    echo ">>> ~/.ssh is read-only (Docker ro mount); running gh with a temporary HOME..."
     GH_SSH_HOME=$(mktemp -d /tmp/gh-home-XXXXXX)
     mkdir -p "$GH_SSH_HOME/.ssh"
     cp -r "$HOME/.ssh/." "$GH_SSH_HOME/.ssh/" 2>/dev/null || true
@@ -91,6 +101,19 @@ if [ -t 0 ] && ! gh auth status >/dev/null 2>&1; then
   gh auth login --git-protocol ssh --web
 
   if [ -n "${ORIG_HOME:-}" ]; then
+    # gh wrote its token under the temporary HOME. Move it back before $HOME is
+    # restored: the profile below reads ~/.config/gh/hosts.yml, finds nothing in
+    # the real home, and leaves GH_TOKEN unset, so a successful login was
+    # discarded along with the temp directory.
+    if [ -f "$HOME/.config/gh/hosts.yml" ]; then
+      if mkdir -p "$ORIG_HOME/.config/gh" 2>/dev/null &&
+        cp "$HOME/.config/gh/hosts.yml" "$ORIG_HOME/.config/gh/hosts.yml" 2>/dev/null; then
+        echo ">>> Restored gh credentials to $ORIG_HOME/.config/gh"
+      else
+        echo ">>> Warn: could not restore gh credentials to $ORIG_HOME/.config/gh"
+      fi
+    fi
+
     KEY_FILE=$(ls "$HOME/.ssh/id_ed25519" 2>/dev/null || ls "$HOME/.ssh/id_rsa" 2>/dev/null || true)
     if [ -n "$KEY_FILE" ]; then
       echo ">>> Configuring GIT_SSH_COMMAND to use generated key..."
@@ -102,6 +125,7 @@ if [ -t 0 ] && ! gh auth status >/dev/null 2>&1; then
 
   echo ""
   echo ">>> Re-sourcing profile to pick up GH_TOKEN..."
+  # shellcheck source=/dev/null
   . "$HOME/.profile"
   echo ">>> GH_TOKEN: ${GH_TOKEN:+set}"
 fi
