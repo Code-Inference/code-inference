@@ -20,6 +20,8 @@ From any project directory:
 ```bash
 code-inference               # launch opencode with the inference stack
 code-inference --fresh       # standalone opencode (no inference, persistent volumes)
+code-inference --fresh --ephemeral-keep-auth  # standalone, login kept, sessions discarded
+code-inference --fresh --ephemeral            # standalone, nothing survives the container
 code-inference --restart     # restart the inference stack (volumes preserved)
 code-inference --full-isolation  # compose with scoped project name (inference, ephemeral)
 code-inference --full-isolation --disk-name EXT1TB  # per-project volumes on an external disk
@@ -68,6 +70,10 @@ boundary instead of running the agent directly on your host. See
 The `--fresh` flag skips the compose stack and runs the agent standalone with persistent named
 volumes. opencode pulls its published upstream image; the other four build from
 `src/<agent>-stack/Dockerfile` on first run, so they always match this checkout's toolchain.
+
+Narrow that with `--ephemeral-keep-auth`, which keeps only the volume holding the agent's
+login, or `--ephemeral`, which keeps no named volume at all so nothing survives the
+container. Both require `--fresh`; see [docs/agents.md](docs/agents.md).
 
 No Docker-in-Docker, no wrapper image, no extra daemons.
 

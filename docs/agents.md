@@ -111,6 +111,8 @@ All four modes work with every agent:
 ```bash
 code-inference --agent claude                    # agent + inference stack
 code-inference --agent claude --fresh            # agent alone, persistent volumes
+code-inference --agent claude --fresh --ephemeral-keep-auth  # login kept, sessions not
+code-inference --agent claude --fresh --ephemeral            # nothing kept
 code-inference --agent claude --full-isolation   # per-project volumes
 code-inference --agent claude --restart          # restart that agent's stack
 code-inference --agent claude --full-isolation --privileged --disk-name EXT1TB
@@ -124,6 +126,38 @@ agent mapping in one place.
 `--privileged` has the same constraints as for opencode: it requires
 `--full-isolation` and `--disk-name`, and grants `docker.sock` + `privileged: true`
 + root. See [opencode-stack.md](opencode-stack.md#--privileged-running-opencode-inside-a-sandbox).
+
+## `--ephemeral` and `--ephemeral-keep-auth`
+
+`--fresh` keeps the agent's named volumes, so settings, session history and
+credentials survive the container. Two modifiers narrow that. Both require
+`--fresh`, and they are mutually exclusive:
+
+```bash
+code-inference --agent claude --fresh --ephemeral-keep-auth   # login survives
+code-inference --agent claude --fresh --ephemeral             # nothing survives
+```
+
+`--ephemeral` mounts no named volume at all. The workspace bind and the
+read-only `~/.ssh` bind stay — those are host paths, not container state — and
+everything else lives in the container's writable layer, which `--rm` discards
+on exit. The agent has to be authenticated again next run.
+
+`--ephemeral-keep-auth` keeps exactly one thing, the volume holding the agent's
+login, and drops session history, runtime state and caches:
+
+| Agent | Volume kept | Holds |
+|---|---|---|
+| opencode | `opencode_data` | `auth.json`, provider tokens |
+| claude | `claude_home` | `~/.claude` — credentials |
+| cursor | `cursor_config`, `cursor_home` | `~/.config/cursor-agent`, `~/.cursor-agent` — the installer keeps credentials in both |
+| codex | `codex_home` | `~/.codex` — `auth.json` |
+| grok | `grok_home` | `~/.grok` — `auth.json`, `config.toml` |
+
+opencode is the imperfect case. Its `auth.json` sits in `opencode_data` next to
+session storage, and a named volume cannot be mounted over a single file, so
+`--ephemeral-keep-auth` keeps opencode's sessions too. The other four keep
+credentials and history in separate volumes and get the full split.
 
 ## Switching in and out of `--full-isolation`
 
@@ -189,7 +223,11 @@ tag quietly deciding which toolchain you get.
 
 opencode is the exception: `launch-fresh-opencode.sh` runs the published
 `ghcr.io/anomalyco/opencode` image, because opencode ships and versions that
-image upstream rather than building it here.
+image upstream rather than building it here. That image runs as root with
+`HOME=/root` and ships no `opencode` user, so its launcher sets `HOME` and the
+four `XDG_*` variables to the `/home/opencode/...` paths the volumes mount at.
+Without them opencode wrote to `/root`, every named volume stayed empty, and
+`--fresh` persisted nothing at all.
 
 ## Project templates
 
