@@ -80,9 +80,10 @@ which this caught.
 ```
 
 A pre-commit hook and a CI lint step. It exists because the repository intentionally carries
-duplicated files — seven per-agent template folders sharing the same seven — and duplication
-without a check drifts silently. If it reports drift, copy the correct version to the others
-rather than editing the script.
+duplicated files — seven per-agent template folders sharing the same seven, plus the `ghw`
+skill at two discovery paths in three of them — and duplication without a check drifts
+silently. If it reports drift, copy the correct version to the others rather than editing the
+script.
 
 A second guard, `check-entrypoint-sync.sh`, protected the two container-entrypoint copies and
 was removed together with the duplicate.

@@ -265,15 +265,15 @@ from the folder, so adding a file to a template is enough to have it offered.
 Each agent needs its own template because the instruction file and its path
 differ, and because agents only auto-load the paths they recognise:
 
-| Agent | Auto-loads | Git workflow shipped at |
-|---|---|---|
-| opencode | `AGENTS.md`, `.opencode/instructions/*.md`, `opencode.json` | `.opencode/instructions/git-workflow.md` |
-| claude | `CLAUDE.md`, `.claude/rules/*.md` | `.claude/rules/git-workflow.md` |
-| cursor | `AGENTS.md`, `.cursor/rules/*.mdc` | `.cursor/rules/git-workflow.mdc` |
-| codex | `AGENTS.md` only | `docs/git-workflow.md` (referenced, not auto-loaded) |
-| grok | `AGENTS.md` only | `docs/git-workflow.md` (referenced, not auto-loaded) |
-| hermes | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) |
-| pi | `AGENTS.md`, `.pi/*` | `docs/git-workflow.md` (referenced, not auto-loaded) |
+| Agent | Auto-loads | Git workflow shipped at | ghw skill at |
+|---|---|---|---|
+| opencode | `AGENTS.md`, `.opencode/instructions/*.md`, `opencode.json` | `.opencode/instructions/git-workflow.md` | `.agents/skills/ghw/SKILL.md` |
+| claude | `CLAUDE.md`, `.claude/rules/*.md`, `.claude/skills/*/SKILL.md` | `.claude/rules/git-workflow.md` | `.claude/skills/ghw/SKILL.md` |
+| cursor | `AGENTS.md`, `.cursor/rules/*.mdc`, `.agents/skills/*/SKILL.md` | `.cursor/rules/git-workflow.mdc` | `.agents/skills/ghw/SKILL.md` |
+| codex | `AGENTS.md`, `.agents/skills/*/SKILL.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/ghw/SKILL.md` |
+| grok | `AGENTS.md`, `.grok/skills/*/SKILL.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.grok/skills/ghw/SKILL.md` |
+| hermes | `AGENTS.md`, `.hermes/skills/*/SKILL.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.hermes/skills/ghw/SKILL.md` |
+| pi | `AGENTS.md`, `.pi/*`, `.agents/skills/*/SKILL.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/ghw/SKILL.md` |
 
 Two details worth knowing:
 
@@ -285,8 +285,29 @@ Two details worth knowing:
   before committing. It is not auto-loaded; claiming otherwise would be
   misleading.
 
+### The GHW skill
+
+The workflow also ships as the **GHW** skill, so an agent that supports skills
+finds it without being told to read a document. It is vendored from
+[agentic-framework-skills/GHW](https://github.com/agentic-framework-skills/GHW)
+(MIT, copyright Jean Machuca) with one change: the frontmatter `name` is `ghw`,
+not `GHW`, because every agent validates that the name is lowercase and matches
+the folder — the published `GHW` violates that and would not load.
+
+Every template carries the copy at `.agents/skills/ghw/`, the path OpenCode,
+Cursor, Codex and Pi read. Claude, Grok Build and Hermes read skills only from
+their own dotdir, so those three templates also carry a copy at `.claude/`,
+`.grok/` and `.hermes/skills/ghw/`. Both files are identical everywhere;
+`scripts/check-template-sync.sh` compares the agent-specific copies against the
+canonical `.agents/` one, since the same-path check cannot see them.
+
+The skill is the short form. `docs/git-workflow.md` stays the long form and the
+instruction file keeps pointing at it: skills are discovered up front but loaded
+on demand, so nothing guarantees the skill is in context when a commit happens.
+
 The files every template shares — `docs/git-workflow.md`,
-`.pre-commit-config.yaml`, `dev-requirements.txt` and `.github/workflows/` —
+`.agents/skills/ghw/`, `.pre-commit-config.yaml`, `dev-requirements.txt` and
+`.github/workflows/` —
 must stay byte-identical across all seven, or two agents would follow different
 rules in the same repository. `scripts/check-template-sync.sh` enforces this in
 pre-commit and CI.

@@ -5,6 +5,8 @@
 ## Git workflow
 
 See `.opencode/instructions/git-workflow.md` for the SDLC workflow (topic branches, PRs, no rebase, SemVer).
+The same rules ship as the `ghw` skill at `.agents/skills/ghw/SKILL.md`, which skill-aware
+agents discover automatically.
 
 ## Commands
 

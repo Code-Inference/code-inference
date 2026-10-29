@@ -331,6 +331,8 @@ describe_template_file() {
     .pre-commit-config.yaml) echo "pre-commit hooks: whitespace, YAML, large files" ;;
     dev-requirements.txt) echo "dev dependencies: pre-commit, linters, type checkers" ;;
     .github/workflows/*) echo "CI/CD: lint, test, auto-PR, release workflows" ;;
+    *skills/ghw/SKILL.md) echo "git workflow skill: branches, PRs, tags, sync" ;;
+    *skills/ghw/LICENSE) echo "GHW skill licence: MIT attribution" ;;
     *) echo "project template" ;;
   esac
 }
