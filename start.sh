@@ -34,6 +34,21 @@ validate_agent() {
   exit 2
 }
 
+# Reject an unknown or empty template name, rather than falling back to the
+# default scaffold after the user asked for another one.
+validate_template() {
+  case "$1" in
+    default | workspace) return 0 ;;
+  esac
+  if [ -z "$1" ]; then
+    echo "Error: --template requires a value." >&2
+  else
+    echo "Error: unknown template '$1'." >&2
+  fi
+  echo "       One of: ${TEMPLATE_NAMES}" >&2
+  exit 2
+}
+
 # Compose file basename (no extension) for the agent's stack.
 agent_compose() {
   case "$1" in
@@ -89,6 +104,95 @@ agent_template_dir() {
   esac
 }
 
+# Scaffolds this wrapper can create in a new project. "default" is the per-agent
+# scaffold above; "workspace" is the multi-repo scaffold, one folder for every
+# agent because it ships the instruction file each agent reads.
+TEMPLATE_NAMES="default, workspace"
+
+# Folder of the scaffold selected with --template.
+template_dir() {
+  case "$2" in
+    default) agent_template_dir "$1" ;;
+    workspace) echo "templates/workspace" ;;
+    *) return 1 ;;
+  esac
+}
+
+# ── Skills ───────────────────────────────────────────────────────────────────
+# Skills used to be vendored into every template: six skills copied to ten
+# locations, which pinned stale content in this repository and had to be
+# re-copied by hand on every upstream change. They are installed from upstream
+# instead, on request, so a project gets current content and nothing is
+# duplicated here.
+#
+# The CLI is pinned so its behaviour is reproducible; override SKILLS_CLI to try
+# a newer one. `--copy` writes real files rather than symlinks, because the project
+# is bind-mounted into the container and a lockfile is generated either way.
+SKILLS_CLI="${SKILLS_CLI:-skills@1.7.4}"
+SKILL_SOURCES="VibeLeading/mission-script
+VibeLeading/ira-prompting
+VibeLeading/hud-setup
+VibeLeading/pit-stop-audit
+VibeLeading/org-geometry
+agentic-framework-skills/GHW"
+# The CLI spells some agents differently and writes to the path each one reads:
+# .agents/skills/ for opencode, cursor, codex and pi; .claude/, .grok/ and
+# .hermes/skills/ for the other three. Installing for all seven keeps the
+# workspace scaffold usable with whichever agent is launched next.
+SKILL_AGENTS="opencode claude-code cursor codex grok hermes-agent pi"
+
+# Upstream publishes GHW with `name: GHW`. The CLI lowercases the directory to
+# ghw/ but leaves the frontmatter alone, and OpenCode requires the name to match
+# the folder and be lowercase -- installed as-is, the skill is there and never
+# loads. Normalize the field after the install; the other five already comply.
+normalize_skill_names() {
+  for root in .agents .claude .grok .hermes; do
+    skill="$root/skills/ghw/SKILL.md"
+    [ -f "$skill" ] || continue
+    if head -10 "$skill" | grep -q '^name: *GHW$'; then
+      sed '1,10s/^name: *GHW$/name: ghw/' "$skill" > "$skill.tmp"
+      mv "$skill.tmp" "$skill"
+      echo "Normalized skill name: GHW -> ghw in ${skill}"
+    fi
+  done
+}
+
+# Install the skills into the current directory with the upstream CLI.
+install_skills() {
+  if ! command -v npx >/dev/null 2>&1; then
+    echo "Error: --add-skills needs npx (Node.js) on the host, and none is on PATH." >&2
+    echo "       Install Node.js, or run this in the project yourself:" >&2
+    echo "       npx skills add <source> -y --copy -a ${SKILL_AGENTS}" >&2
+    exit 2
+  fi
+
+  SKILL_AGENT_ARGS=""
+  for agent in $SKILL_AGENTS; do
+    SKILL_AGENT_ARGS="$SKILL_AGENT_ARGS -a $agent"
+  done
+
+  # One invocation per source: `skills add` in 1.7.4 silently installs only the
+  # first of several sources, so chaining them is not optional. A here-doc keeps
+  # the loop in this shell, so a failure can exit the script instead of a
+  # subshell.
+  while read -r source; do
+    [ -n "$source" ] || continue
+    echo "Installing ${source}"
+    # stdin is /dev/null: npx would otherwise drain the here-doc above and the
+    # loop would stop after the first source.
+    # shellcheck disable=SC2086  # SKILL_AGENT_ARGS is a flag list, split on purpose
+    if ! npx --yes "$SKILLS_CLI" add "$source" -y --copy $SKILL_AGENT_ARGS </dev/null; then
+      echo "Error: 'npx $SKILLS_CLI add $source' failed; skills are incomplete." >&2
+      echo "       Re-run 'code-inference --add-skills' once the CLI and network work." >&2
+      exit 1
+    fi
+  done <<EOF
+$SKILL_SOURCES
+EOF
+
+  normalize_skill_names
+}
+
 usage() {
   cat <<EOF
 Usage: code-inference [--agent NAME] [mode] [options] [-- agent-args]
@@ -115,6 +219,18 @@ Options:
   --agent NAME         Run a coding agent instead of ${DEFAULT_AGENT}.
                        Must be first. One of: ${AGENT_NAMES}
                        Default: ${DEFAULT_AGENT}
+  --template NAME      Project scaffold to create in a workspace that has none
+                       yet. "default" is the per-agent scaffold; "workspace" is
+                       the multi-repo scaffold, where the root is scaffolding
+                       and each subfolder is its own git repository.
+                       One of: ${TEMPLATE_NAMES}
+                       Default: default
+  --add-skills         Install the optional skills (ghw plus the five Vibe
+                       Leading skills) with \`npx skills add\`. Needs Node.js and
+                       network access; writes .agents/skills/ and the native
+                       .claude/, .grok/ and .hermes/skills/ copies, plus
+                       skills-lock.json. Runs in this directory whether or not
+                       the scaffold above was just created.
     --disk-name NAME   Use an external disk for volumes (default: EXT1TB)
   --privileged         Run with docker.sock + privileged + root, so it can spawn
                        nested containers. The container is the sandbox boundary;
@@ -132,8 +248,12 @@ Examples:
   code-inference --agent cursor --restart
   code-inference --agent hermes --fresh
   code-inference --agent pi --full-isolation --disk-name EXT1TB
+  code-inference --template workspace              # multi-repo workspace scaffold
+  code-inference --agent claude --template workspace
+  code-inference --add-skills                      # install the optional skills first
 
-Options also accept the --name=value form: --agent=claude, --disk-name=EXT1TB.
+Options also accept the --name=value form: --agent=claude, --template=workspace,
+--disk-name=EXT1TB.
 Anything after -- is passed to the agent. An unrecognised flag is an error
 rather than being ignored, so a typo cannot silently run a different agent at a
 different privilege level.
@@ -148,6 +268,8 @@ EOF
 # than being silently ignored. Everything after -- or the first unrecognised
 # argument goes to the agent.
 AGENT="$DEFAULT_AGENT"
+TEMPLATE="default"
+ADD_SKILLS=0
 
 # Check the whole flag vocabulary up front, without consuming anything.
 #
@@ -168,10 +290,10 @@ validate_options() {
   for arg in "$@"; do
     case "$arg" in
       --) return 0 ;; # everything past -- belongs to the agent
-      --agent=* | --disk-name=*) continue ;;
+      --agent=* | --disk-name=* | --template=*) continue ;;
       -*)
         case "$arg" in
-          --fresh | --restart | --full-isolation | --agent | --help | -h) continue ;;
+          --fresh | --restart | --full-isolation | --agent | --template | --add-skills | --help | -h) continue ;;
           --ephemeral | --ephemeral-keep-auth) continue ;;
           # Parsed by the launcher and restart.sh, which start.sh dispatches to.
           --disk-name | --privileged | --purge) continue ;;
@@ -242,6 +364,25 @@ while [ $# -gt 0 ]; do
       FULL_ISOLATION=1
       shift
       ;;
+    --template)
+      if [ -z "${2:-}" ]; then
+        echo "Error: --template requires a value." >&2
+        echo "       One of: ${TEMPLATE_NAMES}" >&2
+        exit 2
+      fi
+      validate_template "$2"
+      TEMPLATE="$2"
+      shift 2
+      ;;
+    --template=*)
+      validate_template "${1#--template=}"
+      TEMPLATE="${1#--template=}"
+      shift
+      ;;
+    --add-skills)
+      ADD_SKILLS=1
+      shift
+      ;;
     --agent | --agent=*)
       echo "Error: --agent must be the first argument." >&2
       echo "       It selects the agent and its project templates, so it cannot" >&2
@@ -298,6 +439,17 @@ fi
 
 [ -n "$AGENT" ] || AGENT="$DEFAULT_AGENT"
 validate_agent "$AGENT"
+validate_template "$TEMPLATE"
+
+# --template only affects the project bootstrap below, which --fresh and
+# --restart skip entirely. Say so rather than accepting the flag and quietly
+# doing nothing with it.
+if [ "$TEMPLATE" != "default" ]; then
+  if [ "$FRESH" -eq 1 ] || [ "$RESTART" -eq 1 ]; then
+    echo "Note: --template ${TEMPLATE} only affects project bootstrap;" >&2
+    echo "      --fresh and --restart do not start the agent in this workspace." >&2
+  fi
+fi
 
 # ── Project config bootstrap ─────────────────────────────────────────────────
 # Each agent has its own template folder, because the instruction file and its
@@ -325,7 +477,14 @@ is_finder_duplicate() {
 
 describe_template_file() {
   case "$1" in
-    AGENTS.md | CLAUDE.md) echo "instructions: conventions, commands" ;;
+    AGENTS.md | CLAUDE.md)
+      if [ "$TEMPLATE" = "workspace" ]; then
+        echo "workspace instructions: root is scaffolding"
+      else
+        echo "instructions: conventions, commands"
+      fi
+      ;;
+    .gitignore) echo "ignores project subfolders, keeps the scaffold" ;;
     *git-workflow*) echo "git workflow rules: branching, PRs, tags, sync" ;;
     opencode.json) echo "provider config: models, instructions, provider URL" ;;
     .pre-commit-config.yaml) echo "pre-commit hooks: whitespace, YAML, large files" ;;
@@ -333,6 +492,22 @@ describe_template_file() {
     .github/workflows/*) echo "CI/CD: lint, test, auto-PR, release workflows" ;;
     *) echo "project template" ;;
   esac
+}
+
+# The workspace scaffold ships its instructions under both names, because it is
+# used with whatever agent you launch. Offer only the one this agent reads:
+# Claude Code loads CLAUDE.md, every other agent loads AGENTS.md. The per-agent
+# templates ship one name anyway, so this is a no-op there.
+is_other_agents_instruction_file() {
+  case "$1" in
+    AGENTS.md)
+      if [ "$AGENT" = "claude" ]; then return 0; fi
+      ;;
+    CLAUDE.md)
+      if [ "$AGENT" != "claude" ]; then return 0; fi
+      ;;
+  esac
+  return 1
 }
 
 # Never scaffold the checkout that provides the templates. Running start.sh from
@@ -346,7 +521,7 @@ INSIDE_TEMPLATES_REPO=0
 [ "$CWD_PHYSICAL" = "$SCRIPT_PHYSICAL" ] && INSIDE_TEMPLATES_REPO=1
 
 if [ "$FRESH" -ne 1 ] && [ "$RESTART" -ne 1 ] && [ "$INSIDE_TEMPLATES_REPO" -eq 0 ]; then
-  TEMPLATE_DIR="$SCRIPT_DIR/$(agent_template_dir "$AGENT")"
+  TEMPLATE_DIR="$SCRIPT_DIR/$(template_dir "$AGENT" "$TEMPLATE")"
 
   # The file list is read from the template folder rather than hardcoded, so a
   # new agent or a new template file is offered automatically and cannot drift
@@ -372,6 +547,7 @@ if [ "$FRESH" -ne 1 ] && [ "$RESTART" -ne 1 ] && [ "$INSIDE_TEMPLATES_REPO" -eq 
   # shellcheck disable=SC2086  # word splitting on newline is the point here
   for f in $TEMPLATE_FILES; do
     is_finder_duplicate "$f" && continue
+    is_other_agents_instruction_file "$f" && continue
     if [ ! -f "./$f" ]; then
       MISSING="$MISSING  - $(printf '%-44s' "$f") ($(describe_template_file "$f"))\n"
     fi
@@ -379,9 +555,13 @@ if [ "$FRESH" -ne 1 ] && [ "$RESTART" -ne 1 ] && [ "$INSIDE_TEMPLATES_REPO" -eq 
   IFS="$OLD_IFS"
 
   if [ -n "$MISSING" ]; then
-    echo "Missing config files in $(pwd) for agent '$AGENT':"
+    if [ "$TEMPLATE" = "default" ]; then
+      echo "Missing config files in $(pwd) for agent '$AGENT':"
+    else
+      echo "Missing config files in $(pwd) for agent '$AGENT', template '$TEMPLATE':"
+    fi
     printf '%b' "$MISSING"
-    printf 'Create from %s? [Y/n]: ' "$(agent_template_dir "$AGENT")"
+    printf 'Create from %s? [Y/n]: ' "$(template_dir "$AGENT" "$TEMPLATE")"
     read -r REPLY || true
     case "$REPLY" in
       n | N | no | No) echo "Skipping." ;;
@@ -392,6 +572,7 @@ if [ "$FRESH" -ne 1 ] && [ "$RESTART" -ne 1 ] && [ "$INSIDE_TEMPLATES_REPO" -eq 
         # shellcheck disable=SC2086
         for f in $TEMPLATE_FILES; do
           is_finder_duplicate "$f" && continue
+          is_other_agents_instruction_file "$f" && continue
           [ -f "./$f" ] && continue
           mkdir -p "./$(dirname "$f")"
           cp "$TEMPLATE_DIR/$f" "./$f"
@@ -401,6 +582,27 @@ if [ "$FRESH" -ne 1 ] && [ "$RESTART" -ne 1 ] && [ "$INSIDE_TEMPLATES_REPO" -eq 
         echo "Customize as needed."
         ;;
     esac
+  fi
+fi
+
+# ── Optional skills ──────────────────────────────────────────────────────────
+# Skills are installed from upstream rather than copied from the templates, so
+# this runs on request and in the project itself: it works in a fresh scaffold,
+# in a project that already has all the config files, and alongside any mode that
+# launches an agent in this directory.
+if [ "$ADD_SKILLS" -eq 1 ]; then
+  if [ "$INSIDE_TEMPLATES_REPO" -eq 1 ]; then
+    echo "Error: --add-skills would install skills into the code-inference checkout." >&2
+    echo "       Run it from your project directory instead." >&2
+    exit 2
+  fi
+  if [ "$RESTART" -eq 1 ]; then
+    # restart.sh restarts containers; it never starts an agent in this
+    # directory, so installing skills here would be a surprise, not a feature.
+    echo "Note: --add-skills is ignored with --restart; no agent starts in this" >&2
+    echo "      directory, so there is nothing to install skills for." >&2
+  else
+    install_skills
   fi
 fi
 

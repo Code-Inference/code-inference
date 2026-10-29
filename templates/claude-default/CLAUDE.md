@@ -5,6 +5,7 @@
 ## Git workflow
 
 See `.claude/rules/git-workflow.md` for the SDLC workflow (topic branches, PRs, no rebase, SemVer).
+Skills are not bundled. Install the optional set with `code-inference --add-skills`.
 
 
 ## Commands

@@ -5,8 +5,9 @@
 ## Git workflow
 
 See `docs/git-workflow.md` for the SDLC workflow (topic branches, PRs, no rebase, SemVer).
-This is the only file loaded automatically, so read it before
-committing, pushing or opening a PR.
+This file is loaded automatically, so read it before committing, pushing or opening a PR.
+
+Skills are not bundled. Install the optional set with `code-inference --add-skills`.
 
 ## Commands
 
