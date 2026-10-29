@@ -1,0 +1,23 @@
+# The workspace root is scaffolding; every subfolder is its own git repository.
+# Ignore them all, then re-include the scaffold that belongs to this repo.
+/*/
+
+!/.github/
+!/.opencode/
+!/.agents/
+!/.claude/
+!/.cursor/
+!/.grok/
+!/.hermes/
+!/docs/
+
+# Dependencies and local artefacts
+node_modules/
+__pycache__/
+*.py[cod]
+
+# Sessions and editor noise
+sessions/
+.sessions/
+.DS_Store
+._*

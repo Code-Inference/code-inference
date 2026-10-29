@@ -1,12 +1,16 @@
 #!/bin/sh
-# Check that the files every agent template shares are byte-identical across all
-# templates/<agent>-default folders.
+# Check that the files every project template shares are byte-identical across
+# all templates/<agent>-default folders and the templates/workspace scaffold.
 #
 # The templates are separate folders on purpose: each agent needs its own
 # instruction file at its own path (CLAUDE.md, AGENTS.md, .cursor/rules/*.mdc).
 # The rest -- git workflow, the bundled skills, pre-commit, dev requirements, CI
 # workflows -- is agent-neutral and must not drift, or two agents would end up
 # working from different rules in the same repository.
+#
+# The workspace scaffold is a template like any other here: it must ship the
+# same shared files as the agent defaults, and the same instructions under both
+# instruction-file names.
 #
 # Files unique to one agent (opencode.json, CLAUDE.md, .cursor/rules/*.mdc) are
 # ignored: they are meant to differ.
@@ -49,7 +53,7 @@ for f in $SHARED; do
   # One "checksum bytes" line per template, joined by |. cksum prints two
   # fields, so each result is kept as a single unit rather than word-split.
   hashes=""
-  for d in templates/*-default; do
+  for d in templates/*-default templates/workspace; do
     if [ ! -f "$d/$f" ]; then
       missing="$missing $d"
       continue
@@ -67,8 +71,8 @@ for f in $SHARED; do
   # value means every copy is identical, which is the passing case.
   distinct=$(printf '%s' "$hashes" | tr '|' '\n' | sort -u | grep -c . || true)
   if [ "$distinct" -gt 1 ]; then
-    echo "DRIFT    $f differs between agent templates:"
-    for d in templates/*-default; do
+    echo "DRIFT    $f differs between templates:"
+    for d in templates/*-default templates/workspace; do
       [ -f "$d/$f" ] || continue
       printf '           %-30s %s\n' "$d" "$(cksum <"$d/$f")"
     done
@@ -82,11 +86,13 @@ fi
 
 # ── agent-specific skill copies ──────────────────────────────────────────────
 # Claude, Grok Build and Hermes read skills only from their own dotdir, so those
-# three templates carry a second copy there. The copies hold the same bytes at
+# templates carry a second copy there -- and the workspace scaffold carries all
+# three, because it is used with any agent. The copies hold the same bytes at
 # different paths, and the same-path check above cannot see them drift --
 # compare the agent-specific copies to the canonical one instead.
 
-for entry in "claude-default:.claude" "grok-default:.grok" "hermes-default:.hermes"; do
+for entry in "claude-default:.claude" "grok-default:.grok" "hermes-default:.hermes" \
+             "workspace:.claude" "workspace:.grok" "workspace:.hermes"; do
   d="templates/${entry%%:*}"
   root="${entry#*:}"
   # shellcheck disable=SC2086  # SKILLS is a newline-separated list, split on purpose
@@ -103,6 +109,26 @@ for entry in "claude-default:.claude" "grok-default:.grok" "hermes-default:.herm
       fi
     done
   done
+done
+
+# The workspace scaffold ships one instruction text under both names, because it
+# is used with any agent. The bootstrap offers only the name the agent reads, so
+# the two must stay identical or switching agent would change the rules.
+if ! cmp -s templates/workspace/AGENTS.md templates/workspace/CLAUDE.md; then
+  echo "DRIFT    templates/workspace/CLAUDE.md differs from templates/workspace/AGENTS.md"
+  status=1
+fi
+
+# templates/workspace/.gitignore is live inside this repository: it ignores every
+# root subdirectory and re-includes the scaffold. A scaffold directory without a
+# matching !/ line would be silently untracked, so flag it here instead of
+# letting it disappear from git status.
+for d in templates/workspace/* templates/workspace/.[!.]*; do
+  [ -d "$d" ] || continue
+  if git check-ignore -q "$d"; then
+    echo "IGNORED  $d (add a !/ line for it to templates/workspace/.gitignore)"
+    status=1
+  fi
 done
 
 if [ "$status" -eq 0 ]; then
