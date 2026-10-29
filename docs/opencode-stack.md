@@ -97,13 +97,16 @@ opencode:
 | `network: internal` | Shares the bridge network with `inference` and `api` — opencode can reach `http://api:8000` |
 | `${PWD}:/workspace` | Mounts whatever directory you run `docker compose` from |
 
-**No persistent volumes are mounted by this service.** Each `run --rm` starts with fresh XDG directories (empty, correct ownership). Config, auth tokens, and cache are ephemeral.
+**The four named volumes below persist config, auth tokens, state and cache across `run --rm`.**
+The `XDG_*_HOME` variables point at directories attached to those volumes, so a new container
+finds the previous one's state instead of starting empty.
 
-> For persistent volumes across sessions, use `launch-fresh-opencode.sh` (standalone `docker run` with named volumes).
+> To start from scratch, remove the volumes or run `launch-fresh-opencode.sh --ephemeral`,
+> which mounts none of them.
 
 ## Volumes
 
-Four named volumes are declared in `docker-compose.yml` but **not attached to any service**:
+The `opencode` service mounts four named volumes, declared at the bottom of `docker-compose.yml`:
 
 | Volume | Container path | Stores |
 |--------|---------------|--------|
@@ -112,17 +115,19 @@ Four named volumes are declared in `docker-compose.yml` but **not attached to an
 | `opencode_state` | `/home/opencode/.local/state/opencode` | Session state |
 | `opencode_cache` | `/home/opencode/.cache/opencode` | Temporary caches |
 
-These exist as a convenience for the standalone `launch-fresh-opencode.sh` script but are dead declarations in the compose context — no compose service references them. To attach them, add `volumes:` entries to the opencode service.
+Compose prefixes each key with the project name, so the volume for a checkout at `~/work/app`
+is `app_opencode_data`. `launch-fresh-opencode.sh` mounts the same four by their bare names;
+`--ephemeral-keep-auth` keeps only `opencode_data`, and `--ephemeral` keeps none.
 
 ## Launcher scripts
 
 | Script | Mechanism | Volumes | Persistence |
 |--------|-----------|---------|-------------|
-| `launch-opencode.sh` | `docker compose --profile stack run --rm` | `workspace` bind | ✅ Config, auth, cache persist |
+| `launch-opencode.sh` | `docker compose --profile stack run --rm` | `workspace` bind, four named volumes, `~/.ssh` ro | ✅ Config, auth, cache persist |
 | `launch-opencode.sh --full-isolation` | `docker compose -p <dirname> -f docker-compose-full-isolation.yml` | Per-project bind mounts | ✅ Scoped per project |
 | `launch-opencode.sh --full-isolation --disk-name <disk>` | Same, volumes rooted on an external disk | Per-project, on `<disk>` | ✅ Scoped per project and per disk |
 | `launch-opencode.sh --full-isolation --privileged --disk-name <disk>` | Same, `opencode_privileged` service | Same | ✅ Plus nested Docker (see below) |
-| `launch-fresh-opencode.sh` | `docker run -it --rm -v $(pwd):/workspace` | Named volumes | ✅ Config, auth, cache persist |
+| `launch-fresh-opencode.sh` | `docker run -it --rm` | Four named volumes; `--ephemeral-keep-auth` keeps `opencode_data`, `--ephemeral` keeps none | ✅ Config, auth, cache persist |
 
 ### launch-opencode.sh
 
@@ -200,17 +205,30 @@ the agent.
 ### launch-fresh-opencode.sh
 
 ```sh
-docker run -it --rm -v $(pwd):/workspace \
+docker run -it --rm -v "$(pwd)":/workspace \
   -v opencode_config:/home/opencode/.config/opencode \
   -v opencode_data:/home/opencode/.local/share/opencode \
   -v opencode_state:/home/opencode/.local/state/opencode \
   -v opencode_cache:/home/opencode/.cache/opencode \
-  ghcr.io/anomalyco/opencode
+  -v ~/.ssh:/home/opencode/.ssh:ro \
+  -e HOME=/home/opencode \
+  -e XDG_CONFIG_HOME=/home/opencode/.config \
+  -e XDG_DATA_HOME=/home/opencode/.local/share \
+  -e XDG_STATE_HOME=/home/opencode/.local/state \
+  -e XDG_CACHE_HOME=/home/opencode/.cache \
+  ghcr.io/anomalyco/opencode:2.0.22
 ```
 
 - Uses `docker run` directly (not compose). Works from any directory without the compose file.
 - Mounts the four named volumes for persistent config, auth, cache, and state.
-- **Name "fresh" is misleading** — with volumes, state persists across runs.
+- **Sets `HOME` and `XDG_*` explicitly.** The published image runs as root with `HOME=/root` and
+  ships no `opencode` user, so without these variables opencode writes to `/root` and the named
+  volumes stay empty; `--fresh` would then persist nothing at all.
+- `--ephemeral-keep-auth` keeps only `opencode_data`, the volume holding `auth.json`. Session
+  storage lives in the same directory, so opencode's sessions survive too. `--ephemeral` mounts
+  no named volume at all, leaving the workspace and the read-only `~/.ssh` bind.
+- **Name "fresh" is misleading** — with volumes, state persists across runs; that is what the
+  two modifiers are for.
 
 ## Permission hardening
 
