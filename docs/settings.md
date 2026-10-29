@@ -809,7 +809,9 @@ those sources into `.agents/skills/` only, so the native copies need their own i
 | `SKILL_AGENTS` | `opencode`, `claude-code`, `cursor`, `codex`, `grok`, `hermes-agent`, `pi` |
 
 Each source needs its own invocation: `skills add` accepts several positional sources but
-installs only the first, so `install_skills` loops. The install runs after the bootstrap and
+installs only the first, so `install_skills` loops. `normalize_skill_names` then rewrites
+GHW's `name: GHW` frontmatter to `ghw` in all four copies — the CLI lowercases only the
+directory, and OpenCode drops a skill whose name does not match its folder. The install runs after the bootstrap and
 independently of it, which means it also works in a project that already has its config files.
 It needs Node.js on the host and network access; a failure exits non-zero instead of launching
 the agent without the skills that were asked for. `--restart` skips it with a note, because no

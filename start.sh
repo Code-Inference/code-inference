@@ -141,6 +141,22 @@ agentic-framework-skills/GHW"
 # workspace scaffold usable with whichever agent is launched next.
 SKILL_AGENTS="opencode claude-code cursor codex grok hermes-agent pi"
 
+# Upstream publishes GHW with `name: GHW`. The CLI lowercases the directory to
+# ghw/ but leaves the frontmatter alone, and OpenCode requires the name to match
+# the folder and be lowercase -- installed as-is, the skill is there and never
+# loads. Normalize the field after the install; the other five already comply.
+normalize_skill_names() {
+  for root in .agents .claude .grok .hermes; do
+    skill="$root/skills/ghw/SKILL.md"
+    [ -f "$skill" ] || continue
+    if head -10 "$skill" | grep -q '^name: *GHW$'; then
+      sed '1,10s/^name: *GHW$/name: ghw/' "$skill" > "$skill.tmp"
+      mv "$skill.tmp" "$skill"
+      echo "Normalized skill name: GHW -> ghw in ${skill}"
+    fi
+  done
+}
+
 # Install the skills into the current directory with the upstream CLI.
 install_skills() {
   if ! command -v npx >/dev/null 2>&1; then
@@ -173,6 +189,8 @@ install_skills() {
   done <<EOF
 $SKILL_SOURCES
 EOF
+
+  normalize_skill_names
 }
 
 usage() {

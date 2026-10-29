@@ -54,10 +54,12 @@ npx skills add VibeLeading/hud-setup -y --copy -a opencode
 npx skills update -p
 ```
 
-Upstream publishes `GHW` with `name: GHW`. The CLI lowercases the folder to
-`ghw/` but leaves the frontmatter field unchanged, and OpenCode requires `name`
-to match the directory and be lowercase — so after an install, edit that field
-to `ghw` if the skill does not appear in the agent's skill list.
+Upstream publishes `GHW` with `name: GHW`, and the CLI lowercases the folder to
+`ghw/` while leaving the frontmatter field alone. OpenCode requires `name` to
+match the directory and be lowercase, so `--add-skills` rewrites that field to
+`ghw` in every installed copy once the install finishes. A bare `npx skills add`
+does not: edit the field yourself, or use `code-inference --add-skills`, which
+does both.
 
 ## MCP servers are not wired in
 
