@@ -3,8 +3,10 @@
 ## Branching and PRs (default)
 
 - **Do not** commit new work **directly** on **`main`** or **`development`**. Use a **topic branch** from **`development`**:
-  `git fetch origin` then `git checkout -b feature/<topic> development` (or `fix/<topic>` / `bugfix/<topic>`).
+  `git fetch origin` then `git checkout -b feature/<topic> development` (or `fix/<topic>`, `bugfix/<topic>`, `chore/<topic>`, `docs/<topic>`, `refactor/<topic>`, `test/<topic>`).
 - **Push** the topic branch and open a PR into **`development`** via the GitHub UI or `gh pr create`.
+  The bundled auto-PR workflow fires on exactly these prefixes — `feature/`, `fix/`, `bugfix/`,
+  `chore/`, `docs/`, `refactor/`, `test/` — and a branch named anything else pushes silently.
 - Merge to **`development`** via **PR** after review.
 - Promotion **`development` → `main`** uses a release PR.
 

@@ -3,7 +3,7 @@
 ## Branching and PRs (default)
 
 - **Do not** commit new work **directly** on **`main`** or **`development`**. Use a **topic branch** from **`development`**:
-  `git fetch origin` then `git checkout -b feature/<topic> development` (or `fix/<topic>` / `bugfix/<topic>`).
+  `git fetch origin` then `git checkout -b feature/<topic> development` (or `fix/<topic>`, `bugfix/<topic>`, `chore/<topic>`, `docs/<topic>`, `refactor/<topic>`, `test/<topic>`).
 - **Push** the topic branch and open a PR into **`development`** via the GitHub UI or `gh pr create`.
 - Merge to **`development`** via **PR** after review.
 - Promotion **`development` → `main`** uses a release PR.
@@ -38,4 +38,4 @@ Use the GitHub UI, **`gh pr create`**, or a configured auto-PR workflow (see `.g
 ## Releases and tags
 
 - **Feature releases:** Open a PR from **`development`** to **`main`**, merge, then tag on **`main`** with an **annotated** SemVer tag: `git tag -a vMAJOR.MINOR.PATCH -m "<description>"`. Push the tag: `git push origin vMAJOR.MINOR.PATCH`.
-- **Integration tags:** After a feature/fix/bugfix PR merges into **`development`**, optionally tag with `vMAJOR.MINOR.PATCH-dev.N` on **`development`**.
+- **Integration tags:** After a topic PR merges into **`development`**, optionally tag with `vMAJOR.MINOR.PATCH-dev.N` on **`development`**.
