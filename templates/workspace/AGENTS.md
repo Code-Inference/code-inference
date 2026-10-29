@@ -8,8 +8,8 @@ agent working in it the same conventions. Do not add application code here.
 ## What this scaffold is
 
 - The root tracks only scaffolding: these instructions, the git workflow, CI
-  templates, pre-commit config, dev requirements, the bundled skills and
-  `opencode.json`. There is no project code at the root, and none belongs there.
+  templates, pre-commit config, dev requirements and `opencode.json`. There is no
+  project code at the root, and none belongs there.
 - **Every subfolder is a standalone git repository** with its own language,
   framework, CI and instruction file. The root repository does not track them.
 - `.gitignore` ignores every root subfolder (`/*/`) and re-includes only the
@@ -37,18 +37,20 @@ See `docs/git-workflow.md` for the full workflow: topic branches from
 `development`, PRs, no rebase, SemVer tags and SSH-only auth. It applies to every
 repository here, including each project subfolder.
 
-The same rules ship as the `ghw` skill under `.agents/skills/ghw/`; skill-aware
-agents discover it without being told to read a document. Skills are loaded on
-demand, so this file remains the entry point — read it, and
-`docs/git-workflow.md`, before committing, pushing or opening a PR.
+The same rules are also available as the `ghw` skill, which skill-aware agents
+discover once skills are installed. Skills are loaded on demand, so this file
+remains the entry point — read it, and `docs/git-workflow.md`, before committing,
+pushing or opening a PR.
 
-## Bundled skills
+## Skills (optional)
 
-`.agents/skills/` ships `ghw` (git workflow) and the five Vibe Leading
-methodology skills: `mission-script`, `ira-prompting`, `hud-setup`,
-`pit-stop-audit` and `org-geometry`. Claude, Grok Build and Hermes read skills
-from `.claude/`, `.grok/` and `.hermes/skills/` instead — the same copies, so
-whichever agent you launch finds them.
+The scaffold ships no skills. `code-inference --add-skills` installs the optional
+set with `npx skills add`: `ghw` (git workflow) and the five Vibe Leading
+methodology skills. They land in `.agents/skills/`, plus the native `.claude/`,
+`.grok/` or `.hermes/skills/` directory when the agent needs one, and the command
+writes `skills-lock.json` so the versions can be restored later.
+
+Run it from the workspace root. Each project subfolder manages its own skills.
 
 ## CI templates
 

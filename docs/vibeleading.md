@@ -1,10 +1,10 @@
 # Vibe Leading skills
 
-The project templates bundle the five open-source [Vibe Leading](https://vibeleading.org/)
-skills, so every new workspace has them the moment the agent starts. They are
-vendored from the upstream repositories at `github.com/VibeLeading/<name>` (MIT,
-copyright Jean Machuca), `SKILL.md` and `LICENSE` unchanged apart from a trailing
-newline on the licence that the `end-of-file-fixer` hook requires.
+The five open-source [Vibe Leading](https://vibeleading.org/) skills are
+optional. The project templates ship no skills; `--add-skills` installs them
+from the upstream repositories at `github.com/VibeLeading/<name>` (MIT,
+copyright Jean Machuca) with the `skills` CLI, so a project gets whatever
+upstream publishes today instead of a copy frozen in this repository.
 
 | Skill | What it does | Upstream |
 |---|---|---|
@@ -14,28 +14,50 @@ newline on the licence that the `end-of-file-fixer` hook requires.
 | `pit-stop-audit` | The monthly Vibe Audit and the Pilot's Final Checklist. | `VibeLeading/pit-stop-audit` |
 | `org-geometry` | The Diamond Squad — one Pilot, four Specialists, NPC agents — and how to assign roles. | `VibeLeading/org-geometry` |
 
-`ghw` (git workflow) is bundled the same way; see
-[agents.md](agents.md#bundled-skills).
+`ghw` (git workflow) comes from
+[agentic-framework-skills/GHW](https://github.com/agentic-framework-skills/GHW)
+and is installed by the same command.
 
-## Where they land
+## Installing
 
-Every template carries the skills at `.agents/skills/<name>/`, the path OpenCode,
-Cursor, Codex and Pi read. Claude, Grok Build and Hermes read skills only from
-their own dotdir, so `templates/claude-default`, `templates/grok-default` and
-`templates/hermes-default` carry a second copy at `.claude/`, `.grok/` and
-`.hermes/skills/<name>/`.
+```bash
+code-inference --add-skills
+code-inference --agent claude --add-skills
+```
 
-`scripts/check-template-sync.sh` compares the agent-specific copies against the
-canonical `.agents/` one. Every copy is byte-identical; the same-path check
-cannot see copies that live at different paths, hence the second pass.
+The flag installs all six sources into the current directory, then launches the
+agent. It passes `-y --copy` and an explicit agent list, so every agent gets a
+copy where it actually looks:
 
-## Updating a skill
+| Path | Agents |
+|------|--------|
+| `.agents/skills/<name>/` | OpenCode, Cursor, Codex, Pi |
+| `.claude/skills/<name>/` | Claude Code |
+| `.grok/skills/<name>/` | Grok Build |
+| `.hermes/skills/<name>/` | Hermes |
 
-Re-vendor, do not hand-edit one template — the guard would flag the other nine
-copies immediately, which is the point. Copy the upstream `SKILL.md` and
-`LICENSE` into all ten locations, then run `./scripts/check-template-sync.sh`.
-The upstream frontmatter is already spec-compliant (lowercase `name` matching the
-folder), so no edit is needed.
+`--copy` writes real files instead of symlinks, which is what a bind mount into
+the container handles predictably. The CLI also writes `skills-lock.json` at the
+project root, recording each skill's source; commit it. `npx skills experimental_install`
+restores those sources into `.agents/skills/` on a clean clone, but does not recreate the
+three native copies.
+
+The CLI is pinned in `start.sh` (`SKILLS_CLI`, default `skills@1.7.4`) and needs
+Node.js plus network access on the host. The install is one `npx skills add` per
+source, because `skills add` accepts several positional sources but installs only
+the first.
+
+To add a single skill, or to update the copies later, run the CLI directly:
+
+```bash
+npx skills add VibeLeading/hud-setup -y --copy -a opencode
+npx skills update -p
+```
+
+Upstream publishes `GHW` with `name: GHW`. The CLI lowercases the folder to
+`ghw/` but leaves the frontmatter field unchanged, and OpenCode requires `name`
+to match the directory and be lowercase — so after an install, edit that field
+to `ghw` if the skill does not appear in the agent's skill list.
 
 ## MCP servers are not wired in
 

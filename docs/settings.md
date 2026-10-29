@@ -746,23 +746,19 @@ offered — there is no table to update.
 Each agent has its own folder because the instruction file and its path differ, and because
 agents only auto-load paths they recognise:
 
-| Template | Instructions | Git workflow | Bundled skills |
-|----------|--------------|--------------|----------------|
-| `opencode-default` | `AGENTS.md`, `opencode.json` | `.opencode/instructions/git-workflow.md` | `.agents/skills/*` |
-| `claude-default` | `CLAUDE.md` | `.claude/rules/git-workflow.md` | `.claude/skills/*` (plus `.agents/skills/*`) |
-| `cursor-default` | `AGENTS.md` | `.cursor/rules/git-workflow.mdc` (`alwaysApply: true`) | `.agents/skills/*` |
-| `codex-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/*` |
-| `grok-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.grok/skills/*` (plus `.agents/skills/*`) |
-| `hermes-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.hermes/skills/*` (plus `.agents/skills/*`) |
-| `pi-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/*` |
+| Template | Instructions | Git workflow |
+|----------|--------------|--------------|
+| `opencode-default` | `AGENTS.md`, `opencode.json` | `.opencode/instructions/git-workflow.md` |
+| `claude-default` | `CLAUDE.md` | `.claude/rules/git-workflow.md` |
+| `cursor-default` | `AGENTS.md` | `.cursor/rules/git-workflow.mdc` (`alwaysApply: true`) |
+| `codex-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) |
+| `grok-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) |
+| `hermes-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) |
+| `pi-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) |
 
 Every template also ships `docs/git-workflow.md`, `.pre-commit-config.yaml`,
-`dev-requirements.txt` and `.github/workflows/*.yml`.
-
-Claude, Grok Build and Hermes read skills only from their own dotdir, so those three
-templates carry a second copy at `.claude/`, `.grok/` and `.hermes/skills/`. The copies
-are byte-identical; `check-template-sync.sh` compares them against the `.agents/` one because
-the same-path check cannot see them.
+`dev-requirements.txt` and `.github/workflows/*.yml`. None ships skills: they are installed
+on demand with `--add-skills`, described below.
 
 A plain `.md` in `.cursor/rules` is ignored by Cursor — the extension must be `.mdc` with
 frontmatter. Codex, Grok, Hermes and Pi have no rules directory, so their templates reference
@@ -772,8 +768,7 @@ frontmatter. Codex, Grok, Hermes and Pi have no rules directory, so their templa
 
 `--template workspace` uses this folder instead of the per-agent default. It is one folder for
 every agent, so it carries the union of the per-agent extras: `opencode.json` and
-`.opencode/instructions/`, the `.cursor/rules` file, and the `.claude/`, `.grok/` and
-`.hermes/` skill copies, alongside the shared files.
+`.opencode/instructions/` and the `.cursor/rules` file, alongside the shared files.
 
 Two things make it a workspace rather than a project:
 
@@ -787,22 +782,42 @@ Two things make it a workspace rather than a project:
   Code takes `CLAUDE.md`, every other agent takes `AGENTS.md`.
 
 `check-template-sync.sh` treats it as a template: its shared files must match the agent
-defaults byte for byte, its three agent-specific skill copies must match its own `.agents/`
-copy, and its two instruction files must match each other.
+defaults byte for byte, and its two instruction files must match each other.
 
-### Bundled skills
+### `--add-skills`
 
-Six skills travel with every template: `ghw` (git workflow) and the five
-[Vibe Leading](vibeleading.md) methodology skills — `mission-script`, `ira-prompting`,
-`hud-setup`, `pit-stop-audit`, `org-geometry`.
+The templates ship no skills. `--add-skills` installs the optional set from upstream with
+`npx skills add`, in the directory that is about to be mounted:
 
-`ghw` is vendored from `github.com/agentic-framework-skills/GHW` (MIT). The only change is
-the frontmatter `name`, lowered to `ghw` so it matches the folder — every agent validates
-that, and the published `GHW` would not load. The five Vibe Leading skills come from
-`github.com/VibeLeading/<name>` and are already compliant, so they are unchanged.
+```bash
+code-inference --add-skills
+code-inference --agent claude --add-skills
+```
 
-Each skill ships `SKILL.md` next to its upstream `LICENSE`. Bump a copy by re-vendoring it
-into all ten locations, not by editing one template: the guard flags the other nine at once.
+It installs `ghw` (git workflow) and the five [Vibe Leading](vibeleading.md) methodology
+skills — `mission-script`, `ira-prompting`, `hud-setup`, `pit-stop-audit`, `org-geometry` —
+for all seven agents at once, so the workspace scaffold works with whichever agent launches
+next. `.agents/skills/` serves OpenCode, Cursor, Codex and Pi; `.claude/`, `.grok/` and
+`.hermes/skills/` serve the agents that read only their own dotdir. The CLI also writes
+`skills-lock.json` with each skill's source; `npx skills experimental_install` restores
+those sources into `.agents/skills/` only, so the native copies need their own install.
+
+| Setting | Value |
+|---------|-------|
+| `SKILLS_CLI` | `skills@1.7.4` — pinned; override in the environment to try a newer CLI |
+| `SKILL_SOURCES` | The six upstream repositories, one `npx skills add` per source |
+| `SKILL_AGENTS` | `opencode`, `claude-code`, `cursor`, `codex`, `grok`, `hermes-agent`, `pi` |
+
+Each source needs its own invocation: `skills add` accepts several positional sources but
+installs only the first, so `install_skills` loops. The install runs after the bootstrap and
+independently of it, which means it also works in a project that already has its config files.
+It needs Node.js on the host and network access; a failure exits non-zero instead of launching
+the agent without the skills that were asked for. `--restart` skips it with a note, because no
+agent starts in that directory, and running it inside the `code-inference` checkout is refused.
+
+Skills are not vendored because six skills in ten locations pinned stale upstream content and
+needed a byte-identity guard over files that upstream can change at any time. The trade-off is
+an install that needs the network: unlike the rest of the template, skills are not offline.
 
 ---
 
@@ -810,7 +825,7 @@ into all ten locations, not by editing one template: the guard flags the other n
 
 | Script | Fails when |
 |--------|------------|
-| `check-template-sync.sh` | A file shared by all seven templates differs between them, or an agent-specific skill copy differs from the `.agents/` one |
+| `check-template-sync.sh` | A file shared by all seven templates differs between them, the workspace instructions differ between `AGENTS.md` and `CLAUDE.md`, or a workspace scaffold directory is ignored |
 | `check-volume-naming.sh` | A compose file gives an agent another agent's volume name |
 | `check-compose-dockerfiles.sh` | A compose file builds a Dockerfile that is not in the tree, an agent build block passes no version arg, or it passes an `ARG` its Dockerfile does not declare |
 

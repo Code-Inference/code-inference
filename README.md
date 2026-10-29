@@ -140,12 +140,12 @@ Agent services exist only in their own compose file — `claude` is defined in
 when you launch an agent in a new project. `--template workspace` creates the multi-repo
 scaffold from `templates/workspace` instead: the root is scaffolding and each subfolder is
 its own git repository. Files shared by all templates
-(`docs/git-workflow.md`, `.agents/skills/*`, `.pre-commit-config.yaml`,
-`dev-requirements.txt`, `.github/workflows/`) must stay byte-identical;
-`scripts/check-template-sync.sh` enforces that in pre-commit and CI.
+(`docs/git-workflow.md`, `.pre-commit-config.yaml`, `dev-requirements.txt`,
+`.github/workflows/`) must stay byte-identical; `scripts/check-template-sync.sh` enforces
+that in pre-commit and CI.
 
-The templates also ship six skills, so skill-aware agents find them without being told to
-read a document: **GHW** for the git workflow
+The templates ship no skills. `--add-skills` installs the optional set from upstream with
+`npx skills add`: **GHW** for the git workflow
 ([agentic-framework-skills/GHW](https://github.com/agentic-framework-skills/GHW)) and the
 five [Vibe Leading](https://vibeleading.org/) methodology skills. All MIT; see
 [docs/vibeleading.md](docs/vibeleading.md).
