@@ -745,20 +745,32 @@ file to a template is enough to have it offered — there is no table to update.
 Each agent has its own folder because the instruction file and its path differ, and because
 agents only auto-load paths they recognise:
 
-| Template | Instructions | Git workflow |
-|----------|--------------|--------------|
-| `opencode-default` | `AGENTS.md`, `opencode.json` | `.opencode/instructions/git-workflow.md` |
-| `claude-default` | `CLAUDE.md` | `.claude/rules/git-workflow.md` |
-| `cursor-default` | `AGENTS.md` | `.cursor/rules/git-workflow.mdc` (`alwaysApply: true`) |
-| `codex-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) |
-| `grok-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) |
+| Template | Instructions | Git workflow | `ghw` skill |
+|----------|--------------|--------------|-------------|
+| `opencode-default` | `AGENTS.md`, `opencode.json` | `.opencode/instructions/git-workflow.md` | `.agents/skills/ghw/` |
+| `claude-default` | `CLAUDE.md` | `.claude/rules/git-workflow.md` | `.claude/skills/ghw/` |
+| `cursor-default` | `AGENTS.md` | `.cursor/rules/git-workflow.mdc` (`alwaysApply: true`) | `.agents/skills/ghw/` |
+| `codex-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/ghw/` |
+| `grok-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/ghw/` |
+| `hermes-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/ghw/` |
+| `pi-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/ghw/` |
 
 Every template also ships `docs/git-workflow.md`, `.pre-commit-config.yaml`,
 `dev-requirements.txt` and `.github/workflows/*.yml`.
 
+Claude, Grok Build and Hermes read skills only from their own dotdir, so those three
+templates carry a second copy at `.claude/`, `.grok/` and `.hermes/skills/ghw/`. The copies
+are byte-identical; `check-template-sync.sh` compares them against the `.agents/` one because
+the same-path check cannot see them.
+
 A plain `.md` in `.cursor/rules` is ignored by Cursor — the extension must be `.mdc` with
 frontmatter. Codex, Grok, Hermes and Pi have no rules directory, so their templates reference
 `docs/git-workflow.md` instead of pretending it is auto-loaded.
+
+The `ghw` skill is vendored from `github.com/agentic-framework-skills/GHW` (MIT). The only
+change is the frontmatter `name`, lowered to `ghw` so it matches the folder — every agent
+validates that, and the published `GHW` would not load. The upstream `LICENSE` ships next to
+it. Bump the copy by re-vendoring, not by editing one template.
 
 ---
 
@@ -766,7 +778,7 @@ frontmatter. Codex, Grok, Hermes and Pi have no rules directory, so their templa
 
 | Script | Fails when |
 |--------|------------|
-| `check-template-sync.sh` | A file shared by all seven templates differs between them |
+| `check-template-sync.sh` | A file shared by all seven templates differs between them, or an agent-specific `ghw` skill copy differs from the `.agents/` one |
 | `check-volume-naming.sh` | A compose file gives an agent another agent's volume name |
 | `check-compose-dockerfiles.sh` | A compose file builds a Dockerfile that is not in the tree, an agent build block passes no version arg, or it passes an `ARG` its Dockerfile does not declare |
 
