@@ -96,6 +96,13 @@ Modes (at most one; defaults to a plain launch):
   --full-isolation     Run via compose with a scoped project name and
                        per-project volumes
 
+Modifiers for --fresh (at most one):
+  --ephemeral          Keep no named volumes, so nothing survives the container
+                       -- the agent's login included
+  --ephemeral-keep-auth
+                       Keep only the volume holding the agent's login; session
+                       history, runtime state and caches are discarded
+
 Options:
   --agent NAME         Run a coding agent instead of ${DEFAULT_AGENT}.
                        Must be first. One of: ${AGENT_NAMES}
@@ -111,6 +118,8 @@ Examples:
   code-inference                                   # opencode, with inference
   code-inference --agent claude                    # Claude Code, with inference
   code-inference --agent claude --fresh            # Claude Code, standalone
+  code-inference --fresh --ephemeral               # throwaway: nothing persists
+  code-inference --fresh --ephemeral-keep-auth     # login persists, sessions not
   code-inference --agent codex --full-isolation --disk-name EXT1TB
   code-inference --agent cursor --restart
 
@@ -153,6 +162,7 @@ validate_options() {
       -*)
         case "$arg" in
           --fresh | --restart | --full-isolation | --agent | --help | -h) continue ;;
+          --ephemeral | --ephemeral-keep-auth) continue ;;
           # Parsed by the launcher and restart.sh, which start.sh dispatches to.
           --disk-name | --privileged | --purge) continue ;;
           *)
@@ -194,10 +204,24 @@ RESTART=0
 FULL_ISOLATION=0
 HELP=0
 
+# --fresh keeps the agent's named volumes. These two narrow that, and are only
+# meaningful together with --fresh: a plain or --full-isolation launch takes its
+# storage from compose, so there are no launcher volumes to drop.
+EPHEMERAL=0
+KEEP_AUTH=0
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --fresh)
       FRESH=1
+      shift
+      ;;
+    --ephemeral)
+      EPHEMERAL=1
+      shift
+      ;;
+    --ephemeral-keep-auth)
+      KEEP_AUTH=1
       shift
       ;;
     --restart)
@@ -240,6 +264,26 @@ if [ "$FRESH" -eq 1 ] && [ "$RESTART" -eq 1 ]; then
   echo "Error: --fresh and --restart are mutually exclusive." >&2
   echo "       --fresh runs the agent alone; --restart restarts the stack." >&2
   exit 2
+fi
+
+# The two --fresh modifiers are alternatives, not layers: "keep nothing" and
+# "keep the login" cannot both hold. Reject rather than silently picking one.
+if [ "$EPHEMERAL" -eq 1 ] && [ "$KEEP_AUTH" -eq 1 ]; then
+  echo "Error: --ephemeral and --ephemeral-keep-auth are mutually exclusive." >&2
+  echo "       --ephemeral keeps nothing; --ephemeral-keep-auth keeps the login." >&2
+  exit 2
+fi
+
+# They narrow the launcher's volumes, which only --fresh uses. A plain or
+# --full-isolation launch gets its storage from compose, so ignoring either flag
+# would leave the user believing the run was throwaway when it was not.
+if [ "$EPHEMERAL" -eq 1 ] || [ "$KEEP_AUTH" -eq 1 ]; then
+  if [ "$FRESH" -ne 1 ]; then
+    echo "Error: --ephemeral and --ephemeral-keep-auth require --fresh." >&2
+    echo "       They narrow the named volumes of a standalone agent; a plain or" >&2
+    echo "       --full-isolation launch uses compose volumes instead." >&2
+    exit 2
+  fi
 fi
 
 [ -n "$AGENT" ] || AGENT="$DEFAULT_AGENT"
@@ -355,7 +399,16 @@ fi
 # DEFAULT_AGENT rather than only the mode that happens to match the first
 # argument.
 if [ "$FRESH" -eq 1 ]; then
-  exec "$SCRIPT_DIR/$(agent_fresh_launcher "$AGENT")" "$@"
+  # The loop above consumed the modifier, so pass it on explicitly: the fresh
+  # launcher repeats the parse and would otherwise never see it.
+  FRESH_ARGS=""
+  if [ "$EPHEMERAL" -eq 1 ]; then
+    FRESH_ARGS="--ephemeral"
+  elif [ "$KEEP_AUTH" -eq 1 ]; then
+    FRESH_ARGS="--ephemeral-keep-auth"
+  fi
+  # shellcheck disable=SC2086  # empty-or-one-word expansion is the point
+  exec "$SCRIPT_DIR/$(agent_fresh_launcher "$AGENT")" $FRESH_ARGS "$@"
 fi
 
 if [ "$RESTART" -eq 1 ]; then

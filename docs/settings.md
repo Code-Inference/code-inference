@@ -671,21 +671,19 @@ skipped on re-entry, so the script is idempotent. SSH config is copied to a rest
 directory to strip macOS-only directives, because `~/.ssh` is a read-only bind mount.
 
 `~/.ssh` reaches the container in three states, and `gh auth login` behaves differently in
-each. Every compose stack bind-mounts it read-only, and a plain bind mount is unwritable too
-because the host uid differs from the container user's; `--fresh opencode` mounts no `~/.ssh`
-at all.
+each. Every compose stack and every `--fresh` launcher bind-mounts it read-only, and a plain
+bind mount is unwritable too because the host uid differs from the container user's.
 
-- **Present and writable** — gh writes its key and token in place. No current launcher
-  produces this.
-- **Present and read-only** — gh runs with a temporary `HOME`, seeded from the real `~/.ssh`
-  so key generation succeeds. The token it writes is copied back to
+- **Present and writable** — gh writes its key and token in place. No launcher produces this.
+- **Present and read-only** — the normal case. gh runs with a temporary `HOME`, seeded from
+  the real `~/.ssh` so key generation succeeds. The token it writes is copied back to
   `~/.config/gh/hosts.yml` before `HOME` is restored. Without that copy the profile which
   exports `GH_TOKEN` reads the real home, finds nothing, and the login is discarded along
   with the temp directory.
 - **Absent** — the temporary `HOME` is *not* used, because the real home is writable and gh
-  can create `~/.ssh` itself. Testing only for "not writable" could not tell this apart from
-  the read-only case: it diverted `HOME` needlessly and announced a Docker ro mount that did
-  not exist.
+  can create `~/.ssh` itself. No launcher produces this state either, but testing only for
+  "not writable" could not tell it apart from the read-only case: it diverted `HOME`
+  needlessly and announced a Docker ro mount that did not exist.
 
 Every agent stack copies this one file, opencode included. There is no second copy: the
 opencode stack previously kept a pre-split duplicate, removed once the opencode image was
@@ -745,6 +743,8 @@ removed along with the duplicate it protected.
 | `AGENT_NAMES` | `opencode, claude, cursor, codex, grok` |
 | `DEFAULT_AGENT` | `opencode` — used in every mode when `--agent` is absent |
 | `--agent` position | Must be the **first** argument |
+| `--ephemeral` | `--fresh` only; keeps no named volumes at all |
+| `--ephemeral-keep-auth` | `--fresh` only; keeps the volume holding the agent's login |
 
 `--agent` selects the compose file, the launcher and the template folder at once, so a
 misplaced `--agent` is an error rather than a silent fallback:
@@ -758,3 +758,8 @@ Four lookup functions hold the single source of truth for agent names:
 `agent_template_dir`, `agent_compose`, `agent_launcher` and `agent_fresh_launcher`. Adding an
 agent means adding it to all four plus `AGENT_NAMES`. `--restart` receives the compose
 basename via `restart.sh --compose`, so `restart.sh` needs no agent mapping of its own.
+
+`--ephemeral` and `--ephemeral-keep-auth` are modifiers on `--fresh`: each is rejected without
+it, and the pair is rejected together. The parse loop consumes them, so `start.sh` hands one
+back to the fresh launcher explicitly. The launcher repeats the same parse, which is also what
+keeps it usable when invoked directly.
