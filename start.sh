@@ -332,7 +332,12 @@ describe_template_file() {
     dev-requirements.txt) echo "dev dependencies: pre-commit, linters, type checkers" ;;
     .github/workflows/*) echo "CI/CD: lint, test, auto-PR, release workflows" ;;
     *skills/ghw/SKILL.md) echo "git workflow skill: branches, PRs, tags, sync" ;;
-    *skills/ghw/LICENSE) echo "GHW skill licence: MIT attribution" ;;
+    *skills/mission-script/SKILL.md) echo "methodology skill: mission scripts" ;;
+    *skills/ira-prompting/SKILL.md) echo "methodology skill: intent-result alignment" ;;
+    *skills/hud-setup/SKILL.md) echo "methodology skill: scoreboard HUD" ;;
+    *skills/pit-stop-audit/SKILL.md) echo "methodology skill: periodic vibe audit" ;;
+    *skills/org-geometry/SKILL.md) echo "methodology skill: squad geometry" ;;
+    *skills/*/LICENSE) echo "skill licence: MIT attribution" ;;
     *) echo "project template" ;;
   esac
 }

@@ -739,27 +739,28 @@ image — a wrong `COPY` line would have gone unnoticed.
 ## `templates/<agent>-default/` — Project bootstrap templates
 
 `start.sh` offers to create any file the chosen agent's template folder ships that is missing
-from the working directory. The file list is read from the folder with `find`, so adding a
-file to a template is enough to have it offered — there is no table to update.
+from the working directory. The file list comes from `git ls-files` inside the template folder
+(`find` as a fallback for a vendored copy), so adding a file to a template is enough to have it
+offered — there is no table to update.
 
 Each agent has its own folder because the instruction file and its path differ, and because
 agents only auto-load paths they recognise:
 
-| Template | Instructions | Git workflow | `ghw` skill |
-|----------|--------------|--------------|-------------|
-| `opencode-default` | `AGENTS.md`, `opencode.json` | `.opencode/instructions/git-workflow.md` | `.agents/skills/ghw/` |
-| `claude-default` | `CLAUDE.md` | `.claude/rules/git-workflow.md` | `.claude/skills/ghw/` |
-| `cursor-default` | `AGENTS.md` | `.cursor/rules/git-workflow.mdc` (`alwaysApply: true`) | `.agents/skills/ghw/` |
-| `codex-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/ghw/` |
-| `grok-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/ghw/` |
-| `hermes-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/ghw/` |
-| `pi-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/ghw/` |
+| Template | Instructions | Git workflow | Bundled skills |
+|----------|--------------|--------------|----------------|
+| `opencode-default` | `AGENTS.md`, `opencode.json` | `.opencode/instructions/git-workflow.md` | `.agents/skills/*` |
+| `claude-default` | `CLAUDE.md` | `.claude/rules/git-workflow.md` | `.claude/skills/*` (plus `.agents/skills/*`) |
+| `cursor-default` | `AGENTS.md` | `.cursor/rules/git-workflow.mdc` (`alwaysApply: true`) | `.agents/skills/*` |
+| `codex-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/*` |
+| `grok-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.grok/skills/*` (plus `.agents/skills/*`) |
+| `hermes-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.hermes/skills/*` (plus `.agents/skills/*`) |
+| `pi-default` | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/*` |
 
 Every template also ships `docs/git-workflow.md`, `.pre-commit-config.yaml`,
 `dev-requirements.txt` and `.github/workflows/*.yml`.
 
 Claude, Grok Build and Hermes read skills only from their own dotdir, so those three
-templates carry a second copy at `.claude/`, `.grok/` and `.hermes/skills/ghw/`. The copies
+templates carry a second copy at `.claude/`, `.grok/` and `.hermes/skills/`. The copies
 are byte-identical; `check-template-sync.sh` compares them against the `.agents/` one because
 the same-path check cannot see them.
 
@@ -767,10 +768,19 @@ A plain `.md` in `.cursor/rules` is ignored by Cursor — the extension must be 
 frontmatter. Codex, Grok, Hermes and Pi have no rules directory, so their templates reference
 `docs/git-workflow.md` instead of pretending it is auto-loaded.
 
-The `ghw` skill is vendored from `github.com/agentic-framework-skills/GHW` (MIT). The only
-change is the frontmatter `name`, lowered to `ghw` so it matches the folder — every agent
-validates that, and the published `GHW` would not load. The upstream `LICENSE` ships next to
-it. Bump the copy by re-vendoring, not by editing one template.
+### Bundled skills
+
+Six skills travel with every template: `ghw` (git workflow) and the five
+[Vibe Leading](vibeleading.md) methodology skills — `mission-script`, `ira-prompting`,
+`hud-setup`, `pit-stop-audit`, `org-geometry`.
+
+`ghw` is vendored from `github.com/agentic-framework-skills/GHW` (MIT). The only change is
+the frontmatter `name`, lowered to `ghw` so it matches the folder — every agent validates
+that, and the published `GHW` would not load. The five Vibe Leading skills come from
+`github.com/VibeLeading/<name>` and are already compliant, so they are unchanged.
+
+Each skill ships `SKILL.md` next to its upstream `LICENSE`. Bump a copy by re-vendoring it
+into all ten locations, not by editing one template: the guard flags the other nine at once.
 
 ---
 
@@ -778,7 +788,7 @@ it. Bump the copy by re-vendoring, not by editing one template.
 
 | Script | Fails when |
 |--------|------------|
-| `check-template-sync.sh` | A file shared by all seven templates differs between them, or an agent-specific `ghw` skill copy differs from the `.agents/` one |
+| `check-template-sync.sh` | A file shared by all seven templates differs between them, or an agent-specific skill copy differs from the `.agents/` one |
 | `check-volume-naming.sh` | A compose file gives an agent another agent's volume name |
 | `check-compose-dockerfiles.sh` | A compose file builds a Dockerfile that is not in the tree, an agent build block passes no version arg, or it passes an `ARG` its Dockerfile does not declare |
 
