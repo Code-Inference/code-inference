@@ -24,7 +24,7 @@
 #      quietly drop one.
 #
 # The inference volumes (model cache, training data) are deliberately
-# agent-neutral and shared: five agents must not mean five 540MB downloads.
+# agent-neutral and shared: seven agents must not mean seven 540MB downloads.
 # They are listed explicitly, so a new shared volume has to be declared here as
 # deliberate rather than slipping in unnoticed.
 #
@@ -35,7 +35,7 @@ set -e
 
 cd "$(dirname "$0")/.." || exit 1
 
-AGENT_NAMES="opencode claude cursor codex grok"
+AGENT_NAMES="opencode claude cursor codex grok hermes pi"
 
 # Agent-neutral volumes, shared by every agent on purpose.
 SHARED_VOLUMES="workspace model_data model_hf_data training_data internal"
@@ -144,6 +144,8 @@ fresh_launcher_for() {
     cursor) echo launch-fresh-cursor.sh ;;
     codex) echo launch-fresh-codex.sh ;;
     grok) echo launch-fresh-grok-build.sh ;;
+    hermes) echo launch-fresh-hermes.sh ;;
+    pi) echo launch-fresh-pi.sh ;;
     *) return 1 ;;
   esac
 }

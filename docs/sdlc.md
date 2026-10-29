@@ -76,11 +76,11 @@ which this caught.
 ### 3. Duplication guard
 
 ```
-./scripts/check-template-sync.sh   # shared template files identical across all 5 agents
+./scripts/check-template-sync.sh   # shared template files identical across all 7 agents
 ```
 
 A pre-commit hook and a CI lint step. It exists because the repository intentionally carries
-duplicated files — five per-agent template folders sharing seven of them — and duplication
+duplicated files — seven per-agent template folders sharing the same seven — and duplication
 without a check drifts silently. If it reports drift, copy the correct version to the others
 rather than editing the script.
 
@@ -91,7 +91,7 @@ Two sibling guards cover the other copy-paste surfaces. `check-volume-naming.sh`
 agent's volumes to carry that agent's name, so one agent's credentials and session history are
 never reachable from another's stack. `check-compose-dockerfiles.sh` requires every `dockerfile:`
 path named by a compose file to exist and every agent build block to forward the version `ARG`
-its Dockerfile declares — that one was added after all five grok compose files turned out to
+its Dockerfile declares — that one was added after every grok compose file turned out to
 point at a `src/grok-build-stack/` that never existed, so `--agent grok` could not build.
 
 ### 4. Lint (ruff)
@@ -191,15 +191,17 @@ All Dockerfiles use the **project root** as build context (set in `docker-compos
 | `llama-stack` | `src/llama-stack/Dockerfile` | `python:3` | Meta llama-model CLI for weight downloads. |
 | `ollama-stack` | `src/ollama-stack/Dockerfile` | `ubuntu` | Ollama CLI alternative. |
 | `opencode` | `src/opencode-stack/Dockerfile` | `ghcr.io/anomalyco/opencode` | OpenCode AI CLI. Mounts `${PWD}:/workspace` for directory-agnostic operation. |
-
-All five agent images are published to `ghcr.io/code-inference/code-inference` by
-`.github/workflows/publish.yml` on a push to `main` or a `v*` tag. opencode owns the bare tags
-(`1.6.0`); the others are suffixed (`1.6.0-claude`). See
-[settings.md](settings.md#githubworkflowspublishyml--image-publishing).
 | `claude` | `src/claude-stack/Dockerfile` | `alpine` | Claude Code CLI. |
 | `cursor` | `src/cursor-stack/Dockerfile` | `debian:bookworm` | Cursor CLI. Debian, not Alpine: its bundled Node is glibc-linked. |
 | `codex` | `src/codex-stack/Dockerfile` | `alpine` | Codex CLI. |
 | `grok` | `src/grok-stack/Dockerfile` | `alpine` | Grok Build CLI. |
+| `hermes` | `src/hermes-stack/Dockerfile` | `alpine` | Hermes Agent. Installed from PyPI (`hermes-agent`). |
+| `pi` | `src/pi-stack/Dockerfile` | `alpine` | Pi coding agent. Installed from npm; Alpine 3.22 for Node >= 22.19. |
+
+All seven agent images are published to `ghcr.io/code-inference/code-inference` by
+`.github/workflows/publish.yml` on a push to `main` or a `v*` tag. opencode owns the bare tags
+(`1.6.0`); the others are suffixed (`1.6.0-claude`, `1.6.0-hermes`, ...). See
+[settings.md](settings.md#githubworkflowspublishyml--image-publishing).
 
 Each agent stack also has a `Dockerfile_privileged` — identical except `USER root`.
 

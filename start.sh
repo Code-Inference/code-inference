@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Agents this wrapper can launch. Each maps to its own launcher script, compose
 # file, template folder, user, home and volumes, so credentials, session history
 # and settings never collide between agents.
-AGENT_NAMES="opencode, claude, cursor, codex, grok"
+AGENT_NAMES="opencode, claude, cursor, codex, grok, hermes, pi"
 
 # Agent used when --agent is omitted, in every mode: plain launch, --fresh,
 # --full-isolation and --restart. Stated here rather than left to fall out of
@@ -23,7 +23,7 @@ DEFAULT_AGENT="opencode"
 # the exit stops the script.
 validate_agent() {
   case "$1" in
-    opencode | claude | cursor | codex | grok) return 0 ;;
+    opencode | claude | cursor | codex | grok | hermes | pi) return 0 ;;
   esac
   if [ -z "$1" ]; then
     echo "Error: --agent requires a value." >&2
@@ -42,6 +42,8 @@ agent_compose() {
     cursor)   echo "docker-compose-cursor" ;;
     codex)    echo "docker-compose-codex" ;;
     grok)     echo "docker-compose-grok-build" ;;
+    hermes)   echo "docker-compose-hermes" ;;
+    pi)       echo "docker-compose-pi" ;;
     *) return 1 ;;
   esac
 }
@@ -54,6 +56,8 @@ agent_launcher() {
     cursor)   echo "launch-cursor.sh" ;;
     codex)    echo "launch-codex.sh" ;;
     grok)     echo "launch-grok-build.sh" ;;
+    hermes)   echo "launch-hermes.sh" ;;
+    pi)       echo "launch-pi.sh" ;;
     *) return 1 ;;
   esac
 }
@@ -65,6 +69,8 @@ agent_fresh_launcher() {
     cursor)   echo "launch-fresh-cursor.sh" ;;
     codex)    echo "launch-fresh-codex.sh" ;;
     grok)     echo "launch-fresh-grok-build.sh" ;;
+    hermes)   echo "launch-fresh-hermes.sh" ;;
+    pi)       echo "launch-fresh-pi.sh" ;;
     *) return 1 ;;
   esac
 }
@@ -77,6 +83,8 @@ agent_template_dir() {
     cursor)   echo "templates/cursor-default" ;;
     codex)    echo "templates/codex-default" ;;
     grok)     echo "templates/grok-default" ;;
+    hermes)   echo "templates/hermes-default" ;;
+    pi)       echo "templates/pi-default" ;;
     *) return 1 ;;
   esac
 }
@@ -122,6 +130,8 @@ Examples:
   code-inference --fresh --ephemeral-keep-auth     # login persists, sessions not
   code-inference --agent codex --full-isolation --disk-name EXT1TB
   code-inference --agent cursor --restart
+  code-inference --agent hermes --fresh
+  code-inference --agent pi --full-isolation --disk-name EXT1TB
 
 Options also accept the --name=value form: --agent=claude, --disk-name=EXT1TB.
 Anything after -- is passed to the agent. An unrecognised flag is an error

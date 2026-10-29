@@ -1,7 +1,7 @@
 # Agents
 
-Five coding agents run on the same local inference stack. `opencode` is the
-default; the other four are selected with `--agent`.
+Seven coding agents run on the same local inference stack. `opencode` is the
+default; the others are selected with `--agent`.
 
 ```bash
 code-inference                              # opencode (default)
@@ -9,6 +9,8 @@ code-inference --agent claude               # Claude Code
 code-inference --agent cursor               # Cursor CLI
 code-inference --agent codex                # Codex CLI
 code-inference --agent grok                 # Grok Build
+code-inference --agent hermes               # Hermes Agent
+code-inference --agent pi                   # Pi coding agent
 ```
 
 ## `--agent` must come first
@@ -50,31 +52,38 @@ anything, so `--disk-name` still reaches the launcher with its value intact.
 
 ## Supported agents
 
-| | opencode | claude | cursor | codex | grok |
-|---|---|---|---|---|---|
-| Product | opencode | Claude Code | Cursor CLI | Codex CLI | Grok Build |
-| `--agent` value | `opencode` | `claude` | `cursor` | `codex` | `grok` |
-| Binary in image | `opencode` | `claude` | `cursor-agent` | `codex` | `grok` |
-| Pinned version | `2.0.22` | `2.1.289` | `2026.10.01` | `0.160.0` | `1.0.46` |
-| Base image | `ghcr.io/anomalyco/opencode` | `alpine` | `debian:bookworm` | `alpine` | `alpine` |
-| Runtime user | `opencode` | `claude` | `cursor` | `codex` | `grok` |
-| Home | `/home/opencode` | `/home/claude` | `/home/cursor` | `/home/codex` | `/home/grok` |
-| Compose service | `opencode` | `claude` | `cursor` | `codex` | `grok` |
-| Compose file | `docker-compose.yml` | `docker-compose-claude.yml` | `docker-compose-cursor.yml` | `docker-compose-codex.yml` | `docker-compose-grok-build.yml` |
-| Stack dir | `src/opencode-stack/` | `src/claude-stack/` | `src/cursor-stack/` | `src/codex-stack/` | `src/grok-stack/` |
-| Template folder | `templates/opencode-default` | `templates/claude-default` | `templates/cursor-default` | `templates/codex-default` | `templates/grok-default` |
-| Instruction file | `AGENTS.md` | `CLAUDE.md` | `AGENTS.md` | `AGENTS.md` | `AGENTS.md` |
-| Published image | `ghcr.io/code-inference/code-inference` | same | same | same | same |
-| Image tag suffix | *(none — owns the bare tags)* | `-claude` | `-cursor` | `-codex` | `-grok` |
+| | opencode | claude | cursor | codex | grok | hermes | pi |
+|---|---|---|---|---|---|---|---|
+| Product | opencode | Claude Code | Cursor CLI | Codex CLI | Grok Build | Hermes Agent | Pi coding agent |
+| `--agent` value | `opencode` | `claude` | `cursor` | `codex` | `grok` | `hermes` | `pi` |
+| Binary in image | `opencode` | `claude` | `cursor-agent` | `codex` | `grok` | `hermes` | `pi` |
+| Pinned version | `2.0.22` | `2.1.289` | `2026.10.01` | `0.160.0` | `1.0.46` | `0.19.0` | `1.4.0` |
+| Base image | `ghcr.io/anomalyco/opencode` | `alpine` | `debian:bookworm` | `alpine` | `alpine` | `alpine` | `alpine` |
+| Runtime user | `opencode` | `claude` | `cursor` | `codex` | `grok` | `hermes` | `pi` |
+| Home | `/home/opencode` | `/home/claude` | `/home/cursor` | `/home/codex` | `/home/grok` | `/home/hermes` | `/home/pi` |
+| Compose service | `opencode` | `claude` | `cursor` | `codex` | `grok` | `hermes` | `pi` |
+| Compose file | `docker-compose.yml` | `docker-compose-claude.yml` | `docker-compose-cursor.yml` | `docker-compose-codex.yml` | `docker-compose-grok-build.yml` | `docker-compose-hermes.yml` | `docker-compose-pi.yml` |
+| Stack dir | `src/opencode-stack/` | `src/claude-stack/` | `src/cursor-stack/` | `src/codex-stack/` | `src/grok-stack/` | `src/hermes-stack/` | `src/pi-stack/` |
+| Template folder | `templates/opencode-default` | `templates/claude-default` | `templates/cursor-default` | `templates/codex-default` | `templates/grok-default` | `templates/hermes-default` | `templates/pi-default` |
+| Instruction file | `AGENTS.md` | `CLAUDE.md` | `AGENTS.md` | `AGENTS.md` | `AGENTS.md` | `AGENTS.md` | `AGENTS.md` |
+| Published image | `ghcr.io/code-inference/code-inference` | same | same | same | same | same | same |
+| Image tag suffix | *(none — owns the bare tags)* | `-claude` | `-cursor` | `-codex` | `-grok` | `-hermes` | `-pi` |
 
 Versions are pinned with `ARG` in each stack's Dockerfile. Bump the `ARG`, not
-the `FROM` line, for the four agent stacks.
+the `FROM` line, for the six agent stacks.
 
 ### Why Cursor is on Debian
 
 Cursor's installer bundles a glibc-linked Node runtime. On Alpine (musl) it
-fails at exec with `cannot execute: required file not found`. The other three
+fails at exec with `cannot execute: required file not found`. The other five
 installers are self-contained and work on Alpine, so only Cursor needs glibc.
+
+### Why Pi is on Alpine 3.22
+
+Pi requires Node >= 22.19. Alpine 3.20 (the base the other Alpine stacks use)
+ships Node 20, so the Pi stack pins `ALPINE_VERSION=3.22`, whose `nodejs` package
+is 22.23.4. Hermes uses 3.22 as well: its own floor is Python 3.11–3.13 and
+3.22 ships 3.12 with the build toolchain its dependencies need.
 
 ## State is per-agent
 
@@ -91,7 +100,12 @@ and settings cannot collide.
 | `<agent>_home` | `$HOME/.<agent-dir>` | credentials, agent-owned dotdir |
 
 `<agent-dir>` is the agent's own directory name: `claude`, `cursor-agent`,
-`codex`, `grok`. opencode uses `opencode` for all five.
+`codex`, `grok`, `hermes`, `pi`. opencode uses `opencode` for all seven.
+
+Hermes and Pi keep everything in one dotdir
+(`~/.hermes`, `~/.pi/agent`), so their `_home` volume is the one that actually
+carries state; the four XDG volumes stay mounted for symmetry and for the caches
+and logs those tools write outside it.
 
 `<agent>_home` exists because each CLI keeps credentials in its own dotdir
 (`~/.claude`, `~/.codex`, ...), which the four XDG mounts above do not cover.
@@ -153,11 +167,15 @@ login, and drops session history, runtime state and caches:
 | cursor | `cursor_config`, `cursor_home` | `~/.config/cursor-agent`, `~/.cursor-agent` — the installer keeps credentials in both |
 | codex | `codex_home` | `~/.codex` — `auth.json` |
 | grok | `grok_home` | `~/.grok` — `auth.json`, `config.toml` |
+| hermes | `hermes_home` | `~/.hermes` — `HERMES_HOME` (credentials, config, skills) |
+| pi | `pi_home` | `~/.pi/agent` — `auth.json`, settings |
 
 opencode is the imperfect case. Its `auth.json` sits in `opencode_data` next to
 session storage, and a named volume cannot be mounted over a single file, so
-`--ephemeral-keep-auth` keeps opencode's sessions too. The other four keep
-credentials and history in separate volumes and get the full split.
+`--ephemeral-keep-auth` keeps opencode's sessions too. The other six keep
+credentials and history in separate volumes and get the full split — Hermes and
+Pi both keep sessions and credentials under their `_home` dotdir, so for those
+two the "auth" volume carries history as well.
 
 ## Switching in and out of `--full-isolation`
 
@@ -215,14 +233,15 @@ docker rmi code-inference-claude-fresh
 ```
 
 Set the agent's version variable (`CLAUDE_CODE_VERSION`, `CODEX_VERSION`,
-`CURSOR_VERSION`, `GROK_VERSION`, `OPENCODE_VERSION`) to build a specific tool
+`CURSOR_VERSION`, `GROK_VERSION`, `HERMES_VERSION`, `PI_VERSION`,
+`OPENCODE_VERSION`) to build a specific tool
 version instead of the Dockerfile's `ARG` default. While it is set the launcher
 rebuilds on every start — cheap through the layer cache, and necessary because an
 existing image tag does not say which version produced it. The variable names and
 the compose-stack equivalent are in
 [settings.md](settings.md#agent-version-pinning).
 
-**It builds rather than pulls, deliberately.** Images for all five stacks are
+**It builds rather than pulls, deliberately.** Images for all seven stacks are
 published to `ghcr.io/code-inference/code-inference`, and `--fresh` does not use
 them. Building from this checkout means `--fresh` always matches the Dockerfile
 and toolchain in the repository you are running from — edit
@@ -253,19 +272,22 @@ differ, and because agents only auto-load the paths they recognise:
 | cursor | `AGENTS.md`, `.cursor/rules/*.mdc` | `.cursor/rules/git-workflow.mdc` |
 | codex | `AGENTS.md` only | `docs/git-workflow.md` (referenced, not auto-loaded) |
 | grok | `AGENTS.md` only | `docs/git-workflow.md` (referenced, not auto-loaded) |
+| hermes | `AGENTS.md` | `docs/git-workflow.md` (referenced, not auto-loaded) |
+| pi | `AGENTS.md`, `.pi/*` | `docs/git-workflow.md` (referenced, not auto-loaded) |
 
 Two details worth knowing:
 
 - A plain `.md` file in `.cursor/rules` is **ignored** by Cursor — it must be
   `.mdc` with frontmatter. The cursor template ships `.mdc` with
   `alwaysApply: true`.
-- Codex and Grok have no rules directory, so their templates ship the workflow at
-  `docs/git-workflow.md` and say in `AGENTS.md` that it must be read before
-  committing. It is not auto-loaded; claiming otherwise would be misleading.
+- Codex, Grok, Hermes and Pi have no rules directory, so their templates ship the
+  workflow at `docs/git-workflow.md` and say in `AGENTS.md` that it must be read
+  before committing. It is not auto-loaded; claiming otherwise would be
+  misleading.
 
 The files every template shares — `docs/git-workflow.md`,
 `.pre-commit-config.yaml`, `dev-requirements.txt` and `.github/workflows/` —
-must stay byte-identical across all five, or two agents would follow different
+must stay byte-identical across all seven, or two agents would follow different
 rules in the same repository. `scripts/check-template-sync.sh` enforces this in
 pre-commit and CI.
 
@@ -287,14 +309,16 @@ pre-commit and CI.
    the instruction file with the one the agent actually reads.
 7. `start.sh` — add the agent to `AGENT_NAMES` and to `agent_template_dir`,
    `agent_compose`, `agent_launcher` and `agent_fresh_launcher`. Keep those five
-   in sync; they are the only places an agent name is spelled out.
+   in sync; they are the only places an agent name is spelled out. Also add it to
+   `AGENT_NAMES` and `fresh_launcher_for` in `scripts/check-volume-naming.sh`,
+   which cross-checks the `--fresh` volumes, and to the `publish.yml` matrix.
 8. Verify: `shellcheck -s sh start.sh launch-<agent>*.sh`,
    `docker compose -f docker-compose-<agent>.yml config -q`, then build and run
    the service and confirm the agent reports its version.
 
 ## Entrypoint
 
-`src/common/entrypoint.sh` is the single entrypoint for **all five** stacks,
+`src/common/entrypoint.sh` is the single entrypoint for **all seven** stacks,
 and ends in:
 
 ```sh
@@ -303,7 +327,7 @@ exec "${AGENT_BIN:-opencode}" "$@"
 
 Each stack's Dockerfile sets `ENV AGENT_BIN=<binary>`. opencode sets nothing,
 so `${AGENT_BIN:-opencode}` resolves to `opencode` — one file, no per-agent
-variants, and a bootstrap fix lands once instead of five times.
+variants, and a bootstrap fix lands once instead of seven times.
 
 The opencode stack kept a duplicate of this file while the stacks were being
 split out, so its image would be untouched. It was verified byte-identical in
