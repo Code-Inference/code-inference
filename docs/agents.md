@@ -214,6 +214,14 @@ rebuild after editing the stack Dockerfile:
 docker rmi code-inference-claude-fresh
 ```
 
+Set the agent's version variable (`CLAUDE_CODE_VERSION`, `CODEX_VERSION`,
+`CURSOR_VERSION`, `GROK_VERSION`, `OPENCODE_VERSION`) to build a specific tool
+version instead of the Dockerfile's `ARG` default. While it is set the launcher
+rebuilds on every start — cheap through the layer cache, and necessary because an
+existing image tag does not say which version produced it. The variable names and
+the compose-stack equivalent are in
+[settings.md](settings.md#agent-version-pinning).
+
 **It builds rather than pulls, deliberately.** Images for all five stacks are
 published to `ghcr.io/code-inference/code-inference`, and `--fresh` does not use
 them. Building from this checkout means `--fresh` always matches the Dockerfile

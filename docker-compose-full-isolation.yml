@@ -115,6 +115,8 @@ services:
     build:
       context: .
       dockerfile: src/opencode-stack/Dockerfile
+      args:
+        - OPENCODE_VERSION
     stdin_open: true   # -i (interactive)
     tty: true           # -t (pseudo-TTY)
     user: opencode
@@ -152,6 +154,8 @@ services:
     build:
       context: .
       dockerfile: src/opencode-stack/Dockerfile_privileged
+      args:
+        - OPENCODE_VERSION
     stdin_open: true   # -i (interactive)
     tty: true           # -t (pseudo-TTY)
     user: root

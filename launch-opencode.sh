@@ -121,6 +121,15 @@ elif [ "$FULL_ISOLATION" -eq 1 ]; then
   fi
 fi
 
+# OPENCODE_VERSION pins the base image for every mode. Its releases are tagged
+# v2.0.30 while the published image tags omit the `v`, so a leading one is
+# stripped here; compose reads the value from the environment. Unset leaves the
+# Dockerfile's ARG default in charge.
+if [ -n "${OPENCODE_VERSION:-}" ]; then
+  OPENCODE_VERSION="${OPENCODE_VERSION#v}"
+  export OPENCODE_VERSION
+fi
+
 # shellcheck disable=SC2097,SC2098
 PWD="$ORIG_PWD" NAME_SUFFIX="$NAME_SUFFIX" DISK_NAME="$DISK_NAME" exec docker compose \
   -f "$DOCKER_COMPOSE_FILE" -p "$NAME_SUFFIX" \
