@@ -8,7 +8,7 @@ Local/on-premise code inference stack. Development is Docker-native — the only
 
 - **Default branch:** `development`. Integration branch for all feature work.
 - **`main`:** Release-only. Receives `development` via release PR.
-- **Topic branches:** Branch from `development`: `feature/<topic>`, `fix/<topic>`, `bugfix/<topic>`.
+- **Topic branches:** Branch from `development`: `feature/<topic>`, `fix/<topic>`, `bugfix/<topic>`, `chore/<topic>`, `docs/<topic>`, `refactor/<topic>`, `test/<topic>`.
 - **No rebase.** Use `git pull` (merge) to sync.
 - **Keep merged branches.** Do not delete topic branches after merge.
 - **Versioning:** [Semantic Versioning 2.0.0](https://semver.org).
@@ -132,7 +132,7 @@ docker compose --profile stack run --rm --no-deps api pytest -v
 
 | Trigger | Workflow | What it does |
 |---------|----------|-------------|
-| Push to `feature/**`, `fix/**`, `bugfix/**` | `open-pr-to-development.yml` | Auto-opens a PR into `development` if none exists |
+| Push to `feature/**`, `fix/**`, `bugfix/**`, `chore/**`, `docs/**`, `refactor/**`, `test/**` | `open-pr-to-development.yml` | Auto-opens a PR into `development` if none exists |
 | Push/PR to `development` or `main` | `ci.yml` | Runs lint + test checks |
 | PR targeting `main` | `main-pr-source.yml` | Rejects PRs whose head branch is not `development` |
 
@@ -147,17 +147,18 @@ Triggers: push or PR to `main` or `development`.
 
 Both jobs run on `ubuntu-latest` with Python 3.12.
 
-NOTE: a PR that modifies `.github/workflows/**` is held for maintainer approval by GitHub
-before any job runs. It shows as `action_required` with zero jobs, which is a pending approval
-rather than a pass — approve it from the Actions tab or with
-`gh api -X POST repos/<owner>/<repo>/actions/runs/<id>/approve`.
+NOTE: a PR can be held for maintainer approval by GitHub before any job runs. It shows as
+`action_required` with zero jobs, which is a pending approval rather than a pass — approve it
+from the Actions tab or with `gh api -X POST repos/<owner>/<repo>/actions/runs/<id>/approve`.
+Changes under `.github/workflows/**` trigger this, but they are not the only trigger; see
+[git-workflow.md](git-workflow.md#6-what-ci-enforces).
 
 NOTE: `tests/api/test_postprocessing.py` has 6 pre-existing failures unrelated to any launcher
 work. Confirm the count against `origin/development` before blaming a change.
 
 ### `open-pr-to-development.yml`
 
-Triggers: push to `feature/**`, `fix/**`, `bugfix/**`.
+Triggers: push to `feature/**`, `fix/**`, `bugfix/**`, `chore/**`, `docs/**`, `refactor/**`, `test/**`.
 
 Queries existing open PRs from that branch to `development` via the GitHub API. If none found, creates one using the first line of the push commit as the title. Requires **Read and write permissions** in repo Settings → Actions → General → Workflow permissions.
 
