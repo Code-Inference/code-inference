@@ -76,6 +76,19 @@ The workspace scaffold keeps the root as scaffolding and treats every subfolder
 as its own git repository. See [agents.md](agents.md#selecting-a-scaffold---template)
 for the layout.
 
+Templates no longer carry skills. `--add-skills` installs the optional set
+(`ghw` plus the five Vibe Leading skills) into the directory with
+`npx skills add`, then launches the agent:
+
+```bash
+code-inference --add-skills
+code-inference --agent claude --add-skills
+```
+
+It needs Node.js and network access, and runs whether or not the scaffold above
+was just created. See [vibeleading.md](vibeleading.md#installing) for the paths
+it writes.
+
 ## Platform details
 
 ### macOS

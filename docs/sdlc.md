@@ -81,9 +81,8 @@ which this caught.
 
 A pre-commit hook and a CI lint step. It exists because the repository intentionally carries
 duplicated files — seven per-agent template folders and the workspace scaffold sharing the
-same files, plus the six bundled skills at a second discovery path in several of them — and
-duplication without a check drifts silently. If it reports drift, copy the correct version to
-the others rather than editing the script.
+same files — and duplication without a check drifts silently. If it reports drift, copy the
+correct version to the others rather than editing the script.
 
 A second guard, `check-entrypoint-sync.sh`, protected the two container-entrypoint copies and
 was removed together with the duplicate.

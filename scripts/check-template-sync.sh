@@ -4,13 +4,12 @@
 #
 # The templates are separate folders on purpose: each agent needs its own
 # instruction file at its own path (CLAUDE.md, AGENTS.md, .cursor/rules/*.mdc).
-# The rest -- git workflow, the bundled skills, pre-commit, dev requirements, CI
-# workflows -- is agent-neutral and must not drift, or two agents would end up
-# working from different rules in the same repository.
+# The rest -- git workflow, pre-commit, dev requirements, CI workflows -- is
+# agent-neutral and must not drift, or two agents would end up working from
+# different rules in the same repository.
 #
-# The workspace scaffold is a template like any other here: it must ship the
-# same shared files as the agent defaults, and the same instructions under both
-# instruction-file names.
+# Skills are not templates any more: `--add-skills` installs them from upstream,
+# so the repository carries no copies to keep in sync.
 #
 # Files unique to one agent (opencode.json, CLAUDE.md, .cursor/rules/*.mdc) are
 # ignored: they are meant to differ.
@@ -19,15 +18,6 @@ set -e
 
 cd "$(dirname "$0")/.." || exit 1
 
-# Bundled skills: ghw (git workflow) plus the five Vibe Leading skills. Each
-# ships SKILL.md and LICENSE.
-SKILLS="ghw
-mission-script
-ira-prompting
-hud-setup
-pit-stop-audit
-org-geometry"
-
 SHARED="docs/git-workflow.md
 .pre-commit-config.yaml
 dev-requirements.txt
@@ -35,15 +25,6 @@ dev-requirements.txt
 .github/workflows/main-pr-source.yml
 .github/workflows/open-pr-to-development.yml
 .github/workflows/publish.yml"
-
-# Every template carries each skill at .agents/skills/, the path OpenCode,
-# Cursor, Codex and Pi read.
-# shellcheck disable=SC2086  # SKILLS is a newline-separated list, split on purpose
-for s in $SKILLS; do
-  SHARED="$SHARED
-.agents/skills/$s/SKILL.md
-.agents/skills/$s/LICENSE"
-done
 
 status=0
 
@@ -80,37 +61,6 @@ for f in $SHARED; do
   fi
 done
 
-if [ "$status" -eq 0 ]; then
-  echo "template-sync OK: shared files identical across all agent templates"
-fi
-
-# ── agent-specific skill copies ──────────────────────────────────────────────
-# Claude, Grok Build and Hermes read skills only from their own dotdir, so those
-# templates carry a second copy there -- and the workspace scaffold carries all
-# three, because it is used with any agent. The copies hold the same bytes at
-# different paths, and the same-path check above cannot see them drift --
-# compare the agent-specific copies to the canonical one instead.
-
-for entry in "claude-default:.claude" "grok-default:.grok" "hermes-default:.hermes" \
-             "workspace:.claude" "workspace:.grok" "workspace:.hermes"; do
-  d="templates/${entry%%:*}"
-  root="${entry#*:}"
-  # shellcheck disable=SC2086  # SKILLS is a newline-separated list, split on purpose
-  for s in $SKILLS; do
-    for f in SKILL.md LICENSE; do
-      canonical="$d/.agents/skills/$s/$f"
-      specific="$d/$root/skills/$s/$f"
-      if [ ! -f "$specific" ]; then
-        echo "MISSING  ${specific#templates/} (agent-specific skill copy)"
-        status=1
-      elif ! cmp -s "$canonical" "$specific"; then
-        echo "DRIFT    ${specific#templates/} differs from ${canonical#templates/}"
-        status=1
-      fi
-    done
-  done
-done
-
 # The workspace scaffold ships one instruction text under both names, because it
 # is used with any agent. The bootstrap offers only the name the agent reads, so
 # the two must stay identical or switching agent would change the rules.
@@ -122,7 +72,8 @@ fi
 # templates/workspace/.gitignore is live inside this repository: it ignores every
 # root subdirectory and re-includes the scaffold. A scaffold directory without a
 # matching !/ line would be silently untracked, so flag it here instead of
-# letting it disappear from git status.
+# letting it disappear from git status. Skills installed later are covered by the
+# same negations.
 for d in templates/workspace/* templates/workspace/.[!.]*; do
   [ -d "$d" ] || continue
   if git check-ignore -q "$d"; then
@@ -132,7 +83,7 @@ for d in templates/workspace/* templates/workspace/.[!.]*; do
 done
 
 if [ "$status" -eq 0 ]; then
-  echo "template-sync OK: skill copies identical at every discovery path"
+  echo "template-sync OK: shared files identical, workspace scaffold consistent"
 fi
 
 exit "$status"

@@ -7,8 +7,7 @@
 See `docs/git-workflow.md` for the SDLC workflow (topic branches, PRs, no rebase, SemVer).
 This file is loaded automatically, so read it before committing, pushing or opening a PR.
 
-The same rules ship as the `ghw` skill at `.agents/skills/ghw/SKILL.md`. Agents discover
-skills up front but load them on demand, so this file stays the entry point.
+Skills are not bundled. Install the optional set with `code-inference --add-skills`.
 
 ## Commands
 

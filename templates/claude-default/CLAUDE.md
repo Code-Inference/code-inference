@@ -5,8 +5,7 @@
 ## Git workflow
 
 See `.claude/rules/git-workflow.md` for the SDLC workflow (topic branches, PRs, no rebase, SemVer).
-The same rules ship as the `ghw` skill at `.claude/skills/ghw/SKILL.md`, which Claude Code
-discovers automatically.
+Skills are not bundled. Install the optional set with `code-inference --add-skills`.
 
 
 ## Commands

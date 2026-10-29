@@ -5,8 +5,7 @@
 ## Git workflow
 
 See `.cursor/rules/git-workflow.mdc` for the SDLC workflow (topic branches, PRs, no rebase, SemVer).
-The same rules ship as the `ghw` skill at `.agents/skills/ghw/SKILL.md`, which Cursor
-discovers automatically.
+Skills are not bundled. Install the optional set with `code-inference --add-skills`.
 
 
 ## Commands

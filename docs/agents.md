@@ -265,15 +265,15 @@ from the folder, so adding a file to a template is enough to have it offered.
 Each agent needs its own template because the instruction file and its path
 differ, and because agents only auto-load the paths they recognise:
 
-| Agent | Auto-loads | Git workflow shipped at | Bundled skills at |
-|---|---|---|---|
-| opencode | `AGENTS.md`, `.opencode/instructions/*.md`, `opencode.json`, `.agents/skills/*` | `.opencode/instructions/git-workflow.md` | `.agents/skills/*` |
-| claude | `CLAUDE.md`, `.claude/rules/*.md`, `.claude/skills/*` | `.claude/rules/git-workflow.md` | `.claude/skills/*` (plus `.agents/skills/*`) |
-| cursor | `AGENTS.md`, `.cursor/rules/*.mdc`, `.agents/skills/*` | `.cursor/rules/git-workflow.mdc` | `.agents/skills/*` |
-| codex | `AGENTS.md`, `.agents/skills/*` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/*` |
-| grok | `AGENTS.md`, `.grok/skills/*` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.grok/skills/*` (plus `.agents/skills/*`) |
-| hermes | `AGENTS.md`, `.hermes/skills/*` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.hermes/skills/*` (plus `.agents/skills/*`) |
-| pi | `AGENTS.md`, `.pi/*`, `.agents/skills/*` | `docs/git-workflow.md` (referenced, not auto-loaded) | `.agents/skills/*` |
+| Agent | Auto-loads | Git workflow shipped at |
+|---|---|---|
+| opencode | `AGENTS.md`, `.opencode/instructions/*.md`, `opencode.json`, `.agents/skills/*` | `.opencode/instructions/git-workflow.md` |
+| claude | `CLAUDE.md`, `.claude/rules/*.md`, `.claude/skills/*` | `.claude/rules/git-workflow.md` |
+| cursor | `AGENTS.md`, `.cursor/rules/*.mdc`, `.agents/skills/*` | `.cursor/rules/git-workflow.mdc` |
+| codex | `AGENTS.md`, `.agents/skills/*` | `docs/git-workflow.md` (referenced, not auto-loaded) |
+| grok | `AGENTS.md`, `.grok/skills/*` | `docs/git-workflow.md` (referenced, not auto-loaded) |
+| hermes | `AGENTS.md`, `.hermes/skills/*` | `docs/git-workflow.md` (referenced, not auto-loaded) |
+| pi | `AGENTS.md`, `.pi/*`, `.agents/skills/*` | `docs/git-workflow.md` (referenced, not auto-loaded) |
 
 Two details worth knowing:
 
@@ -305,8 +305,8 @@ root is **scaffolding, not code**: `.gitignore` ignores every subfolder (`/*/`)
 and re-includes the scaffold directories, so each project directory is its own
 git repository that the root never tracks. Its instructions file says the same
 thing — the root holds the instructions, the git workflow, CI templates,
-pre-commit config, dev requirements, the bundled skills and `opencode.json`;
-projects live in subfolders with their own instructions and tooling.
+pre-commit config, dev requirements and `opencode.json`; projects live in
+subfolders with their own instructions and tooling.
 
 Because the same folder serves every agent, it ships its instructions under both
 names, `AGENTS.md` and `CLAUDE.md`, byte-identical. The bootstrap offers only the
@@ -317,39 +317,49 @@ takes `AGENTS.md` — so a project never carries two copies of the same text.
 the agent in this workspace, and the flag says so on stderr rather than being
 silently ignored.
 
-### Bundled skills
+### Skills: `--add-skills`
 
-Every template ships six skills: `ghw` for the git workflow, and the five
-[Vibe Leading](vibeleading.md) methodology skills (`mission-script`,
-`ira-prompting`, `hud-setup`, `pit-stop-audit`, `org-geometry`). An agent that
-supports skills finds them without being told to read a document.
+The templates ship **no skills**. `--add-skills` installs the optional set with
+the upstream CLI, in the project directory:
 
-They are vendored from their upstream repositories (MIT, copyright Jean
-Machuca), `SKILL.md` and `LICENSE` unchanged. `ghw` is the one exception: its
-frontmatter `name` is `ghw`, not `GHW`, because every agent validates that the
-name is lowercase and matches the folder — the published `GHW` violates that
-and would not load. The Vibe Leading skills are already compliant.
+```bash
+code-inference --add-skills                  # install, then launch opencode
+code-inference --agent claude --add-skills   # install, then launch Claude Code
+```
 
-Every template carries the copies at `.agents/skills/<name>/`, the path OpenCode,
-Cursor, Codex and Pi read. Claude, Grok Build and Hermes read skills only from
-their own dotdir, so those three templates also carry a copy at `.claude/`,
-`.grok/` and `.hermes/skills/<name>/`. Every copy is byte-identical;
-`scripts/check-template-sync.sh` compares the agent-specific copies against the
-canonical `.agents/` one, since the same-path check cannot see them.
+It installs `ghw` (git workflow) and the five [Vibe Leading](vibeleading.md)
+methodology skills — `mission-script`, `ira-prompting`, `hud-setup`,
+`pit-stop-audit`, `org-geometry` — for all seven agents at once: `.agents/skills/`
+for OpenCode, Cursor, Codex and Pi, plus the native `.claude/`, `.grok/` and
+`.hermes/skills/` copies for the three agents that read only their own dotdir.
+The CLI also writes `skills-lock.json`, recording each skill's source. Commit it;
+`npx skills experimental_install` restores those sources into `.agents/skills/` on a
+clean clone (it does not recreate the three native copies).
 
-`ghw` is the short form of the git workflow. `docs/git-workflow.md` stays the
-long form and the instruction file keeps pointing at it: skills are discovered
-up front but loaded on demand, so nothing guarantees the skill is in context
-when a commit happens.
+It runs after the bootstrap and independently of it, so it works in a project
+that already has all its config files. It needs Node.js and network access on the
+host; a failed install aborts the launch rather than starting the agent without
+the skills you asked for. `--restart` ignores it, because no agent starts in that
+directory.
 
-The Vibe Leading MCP servers are **not** bundled — they need database
+The CLI is pinned in `start.sh` (`SKILLS_CLI`, default `skills@1.7.4`); override
+it in the environment to try a newer one. Skills are deliberately not vendored:
+six skills in ten locations meant stale content and a byte-identity guard over
+copies upstream can change at any time. The trade-off is that the install needs
+the network, so a template is no longer self-contained offline.
+
+`ghw` is the short form of the git workflow and `docs/git-workflow.md` stays the
+long form. Skills are discovered up front but loaded on demand, so the
+instruction file keeps pointing at the document — nothing guarantees the skill is
+in context when a commit happens.
+
+The Vibe Leading MCP servers are still **not** installed — they need database
 credentials and API keys — but they are documented in
 [vibeleading.md](vibeleading.md#mcp-servers-are-not-wired-in).
 
 The files every template shares — `docs/git-workflow.md`,
-`.agents/skills/<name>/`, `.pre-commit-config.yaml`, `dev-requirements.txt` and
-`.github/workflows/` —
-must stay byte-identical across all seven, or two agents would follow different
+`.pre-commit-config.yaml`, `dev-requirements.txt` and `.github/workflows/` — must
+stay byte-identical across all of them, or two agents would follow different
 rules in the same repository. `scripts/check-template-sync.sh` enforces this in
 pre-commit and CI.
 
