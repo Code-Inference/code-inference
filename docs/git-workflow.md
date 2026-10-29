@@ -23,9 +23,10 @@ Everything else is a topic branch off `development`:
 
 ```
 feature/<topic>   fix/<topic>   bugfix/<topic>
+chore/<topic>     docs/<topic>  refactor/<topic>   test/<topic>
 ```
 
-### 1.1 The auto-PR workflow only fires on three prefixes
+### 1.1 The auto-PR workflow fires on these prefixes
 
 `.github/workflows/open-pr-to-development.yml` triggers on:
 
@@ -34,13 +35,19 @@ branches:
   - "feature/**"
   - "fix/**"
   - "bugfix/**"
+  - "chore/**"
+  - "docs/**"
+  - "refactor/**"
+  - "test/**"
 ```
 
-A topic branch named anything else — `chore/…`, `docs/…`, `refactor/…` — pushes
-successfully and then **silently does nothing**: no PR, no CI. Either use one of
-the three prefixes, or open the PR yourself with `gh pr create`.
+Any other name — `hotfix/…`, `ci/…` — pushes successfully and then **silently
+does nothing**: no PR, no CI. Either use one of these prefixes, or open the PR
+yourself with `gh pr create`.
 
-This is the single most common way to lose ten minutes here.
+This list originally held only the three conventional types, and the gap cost
+real time repeatedly before it was widened. If a new prefix becomes routine, add
+it here instead of remembering the exception.
 
 ## 2. Branching and PRs
 
@@ -73,8 +80,8 @@ This is the single most common way to lose ten minutes here.
 
 ### 2.1 Keep merged feature branches (standard)
 
-**Do not delete merged `feature/*`, `fix/*` or `bugfix/*` branches** — not
-locally, and not with `git push origin --delete`.
+**Do not delete merged topic branches** — not locally, and not with
+`git push origin --delete`.
 
 Also disable GitHub's **Settings → General → Pull Requests → Automatically
 delete head branches**. The default is off; leave it off.
@@ -195,9 +202,11 @@ pull-only or merge-from-remote step.
 Two behaviours that look like failures but are not:
 
 - **`action_required` with zero jobs** means GitHub is holding the run for
-  maintainer approval, which it does whenever a PR modifies
-  `.github/workflows/**`. It is a pending approval, not a pass. Approve from the
-  Actions tab or with
+  maintainer approval. It is a pending approval, not a pass. Changes under
+  `.github/workflows/**` trigger it, but they are not the only trigger: it has
+  also fired on PRs that touched no workflow file at all (#151, #161). Treat the
+  zero-job state itself as the signal rather than inferring it from the diff, and
+  approve from the Actions tab or with
   `gh api -X POST repos/<owner>/<repo>/actions/runs/<id>/approve`.
 - **`tests/api/test_postprocessing.py` has 6 known failures** that predate the
   multi-agent work. Confirm the count against `origin/development` before

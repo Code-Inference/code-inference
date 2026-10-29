@@ -9,12 +9,12 @@ alwaysApply: true
 
 ## Topic branch prefixes matter
 
-**`.github/workflows/open-pr-to-development.yml` only fires on `feature/**`, `fix/**` and `bugfix/**`.** A branch named anything else (`chore/…`, `docs/…`) pushes fine and then silently does nothing — no PR, no CI. Use one of the three prefixes, or open the PR yourself.
+**`.github/workflows/open-pr-to-development.yml` fires on `feature/**`, `fix/**`, `bugfix/**`, `chore/**`, `docs/**`, `refactor/**` and `test/**`.** A branch named anything else (`hotfix/…`, `ci/…`) pushes fine and then silently does nothing — no PR, no CI. Use one of those prefixes, or open the PR yourself.
 
 ## Branching and PRs (default)
 
 - **Do not** commit new work **directly** on **`main`** or **`development`**. Use a **topic branch** from **`development`**:  
-  `git fetch origin` then `git checkout -b feature/<topic> development` (or `fix/<topic>` / `bugfix/<topic>`).
+  `git fetch origin` then `git checkout -b feature/<topic> development` (or `fix/<topic>`, `bugfix/<topic>`, `chore/<topic>`, `docs/<topic>`, `refactor/<topic>`, `test/<topic>`).
 - **Push** the topic branch so CI and **`.github/workflows/open-pr-to-development.yml`** can open a PR into **`development`** (or open the PR via GitHub / `gh pr create`).
 - Merge to **`development`** via **PR** after review. Promotion **`development` → `main`** uses the release flow in [docs/git-workflow.md §9](docs/git-workflow.md#9-release-pr-and-tag-automation).
 
@@ -51,11 +51,11 @@ Do not substitute stash/rebase flows for "sync git" unless the user asks for a p
 
 ## Merged branches
 
-**Do not delete** merged **`feature/*`**, **`fix/*`**, or **`bugfix/*`** branches (local or **`git push origin --delete`**), and **disable** GitHub **"Automatically delete head branches"** unless the user explicitly asks to remove a branch—see [docs/git-workflow.md §2.1](docs/git-workflow.md#21-keep-merged-feature-branches-standard).
+**Do not delete** merged topic branches (**`feature/*`**, **`fix/*`**, **`bugfix/*`**, **`chore/*`**, **`docs/*`**, **`refactor/*`**, **`test/*`**) (local or **`git push origin --delete`**), and **disable** GitHub **"Automatically delete head branches"** unless the user explicitly asks to remove a branch—see [docs/git-workflow.md §2.1](docs/git-workflow.md#21-keep-merged-feature-branches-standard).
 
 ## Opening a PR
 
-Use **`.github/workflows/open-pr-to-development.yml`** (push to **`feature/**`**, **`fix/**`**, **`bugfix/**`**), the GitHub UI, or **`gh pr create`**. Provide a clear title and description of the changes.
+Use **`.github/workflows/open-pr-to-development.yml`** (push to **`feature/**`**, **`fix/**`**, **`bugfix/**`**, **`chore/**`**, **`docs/**`**, **`refactor/**`**, **`test/**`**), the GitHub UI, or **`gh pr create`**. Provide a clear title and description of the changes.
 
 ## Releases and tags
 

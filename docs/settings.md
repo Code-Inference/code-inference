@@ -165,6 +165,7 @@ NOTABLE: `opencode.json` is gitignored (local OpenCode config). `models/*` and `
 |---------|---------------|----------|-------------|
 | `inference-vllm` | `inference-vllm` | `alternate-inference` | `src/inference-vllm/Dockerfile` — **incomplete, do not use** |
 | `inference` | `llama-inference` | `stack`, `inference` | `ghcr.io/ggml-org/llama.cpp:server-cuda12-b9538` — **only production-ready backend** |
+| `inference-hf` | `llama-hf-inference-${NAME_SUFFIX:-common}` | `stack`, `inference` | `ghcr.io/ggml-org/llama.cpp:server` — fetches the GGUF from HuggingFace via `-hf` |
 | `api` | `llama-api` | `stack` | `src/services/api/Dockerfile` |
 | `opencode` | `opencode` | `tools`, `stack` | `src/opencode-stack/Dockerfile` — mounts `${PWD}:/workspace` |
 
@@ -203,6 +204,30 @@ NOTE: The default `CONTEXT_SIZE` in `docker-compose.yml` is `16384` (different f
 | `INFERENCE_URL` | `http://inference:8080` |
 | `RATE_LIMIT_PER_MINUTE` | `30` |
 | `MAX_PROMPT_CHARS` | `8000` |
+
+**`inference-hf` healthcheck:** every compose file declares the same probe on
+the service —
+
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 5
+  start_period: 30s
+```
+
+`/health` returns `{"status":"ok"}` with HTTP 200 only after the model has
+finished loading; before that the middleware answers 503, which `curl -f`
+rejects. That makes it a true readiness probe rather than a liveness one, and
+the image is Ubuntu-based so `curl` is present.
+
+One consequence worth knowing: `start_period` is 30s and the retries cover
+another 150s, so a first run that still has to download the model can sit at
+`(unhealthy)` for a few minutes while it is in fact progressing normally. Docker
+does not restart a container for being unhealthy, and `api` depends on
+`inference-hf` without a `service_healthy` condition, so this affects the status
+column only, not startup.
 
 ### Request flow (stack profile)
 
@@ -645,6 +670,21 @@ Interactive prompts (`gh auth`, git config) skip when not a TTY, and configured 
 skipped on re-entry, so the script is idempotent. SSH config is copied to a restricted temp
 directory to strip macOS-only directives, because `~/.ssh` is a read-only bind mount.
 
+`~/.ssh` reaches the container in three states, and `gh auth login` behaves differently in
+each. Every compose stack and every `--fresh` launcher bind-mounts it read-only, and a plain
+bind mount is unwritable too because the host uid differs from the container user's.
+
+- **Present and writable** — gh writes its key and token in place. No launcher produces this.
+- **Present and read-only** — the normal case. gh runs with a temporary `HOME`, seeded from
+  the real `~/.ssh` so key generation succeeds. The token it writes is copied back to
+  `~/.config/gh/hosts.yml` before `HOME` is restored. Without that copy the profile which
+  exports `GH_TOKEN` reads the real home, finds nothing, and the login is discarded along
+  with the temp directory.
+- **Absent** — the temporary `HOME` is *not* used, because the real home is writable and gh
+  can create `~/.ssh` itself. No launcher produces this state either, but testing only for
+  "not writable" could not tell it apart from the read-only case: it diverted `HOME`
+  needlessly and announced a Docker ro mount that did not exist.
+
 Every agent stack copies this one file, opencode included. There is no second copy: the
 opencode stack previously kept a pre-split duplicate, removed once the opencode image was
 confirmed to carry this file byte-for-byte and to exec `opencode` with `AGENT_BIN` unset.
@@ -703,6 +743,8 @@ removed along with the duplicate it protected.
 | `AGENT_NAMES` | `opencode, claude, cursor, codex, grok` |
 | `DEFAULT_AGENT` | `opencode` — used in every mode when `--agent` is absent |
 | `--agent` position | Must be the **first** argument |
+| `--ephemeral` | `--fresh` only; keeps no named volumes at all |
+| `--ephemeral-keep-auth` | `--fresh` only; keeps the volume holding the agent's login |
 
 `--agent` selects the compose file, the launcher and the template folder at once, so a
 misplaced `--agent` is an error rather than a silent fallback:
@@ -716,3 +758,8 @@ Four lookup functions hold the single source of truth for agent names:
 `agent_template_dir`, `agent_compose`, `agent_launcher` and `agent_fresh_launcher`. Adding an
 agent means adding it to all four plus `AGENT_NAMES`. `--restart` receives the compose
 basename via `restart.sh --compose`, so `restart.sh` needs no agent mapping of its own.
+
+`--ephemeral` and `--ephemeral-keep-auth` are modifiers on `--fresh`: each is rejected without
+it, and the pair is rejected together. The parse loop consumes them, so `start.sh` hands one
+back to the fresh launcher explicitly. The launcher repeats the same parse, which is also what
+keeps it usable when invoked directly.
