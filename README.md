@@ -1,7 +1,7 @@
 # code-inference
 
-Local inference stack for coding agents — runs opencode, Claude Code, Cursor, Codex or Grok Build
-in your project against a preconfigured local `llama.cpp` stack.
+Local inference stack for coding agents — runs opencode, Claude Code, Cursor, Codex, Grok Build,
+Hermes Agent or Pi in your project against a preconfigured local `llama.cpp` stack.
 
 ## Quick install
 
@@ -37,6 +37,8 @@ code-inference --agent claude               # Claude Code
 code-inference --agent cursor               # Cursor CLI
 code-inference --agent codex                # Codex CLI
 code-inference --agent grok                 # Grok Build
+code-inference --agent hermes               # Hermes Agent
+code-inference --agent pi                   # Pi coding agent
 
 code-inference --agent claude --fresh       # agent alone, no inference stack
 code-inference --agent codex --restart      # restart that agent's stack
@@ -68,8 +70,8 @@ OPENCODE_VERSION=2.0.30 code-inference --agent opencode --full-isolation --privi
   --disk-name EXT1TB -- -c
 ```
 
-The variables are `OPENCODE_VERSION`, `CLAUDE_CODE_VERSION`, `CURSOR_VERSION`, `CODEX_VERSION`
-and `GROK_VERSION`; put one in `.env` to pin it persistently. See
+The variables are `OPENCODE_VERSION`, `CLAUDE_CODE_VERSION`, `CURSOR_VERSION`, `CODEX_VERSION`,
+`GROK_VERSION`, `HERMES_VERSION` and `PI_VERSION`; put one in `.env` to pin it persistently. See
 [docs/settings.md](docs/settings.md#agent-version-pinning) for the defaults, and for the `.env`
 caveat on opencode's `v`-prefixed release names.
 
@@ -83,7 +85,7 @@ caveat on opencode's `v`-prefixed release names.
 4. The local inference stack (`llama.cpp` + API) runs alongside via the `stack` profile
 
 The `--fresh` flag skips the compose stack and runs the agent standalone with persistent named
-volumes. opencode pulls its published upstream image; the other four build from
+volumes. opencode pulls its published upstream image; the other six build from
 `src/<agent>-stack/Dockerfile` on first run, so they always match this checkout's toolchain.
 
 Narrow that with `--ephemeral-keep-auth`, which keeps only the volume holding the agent's
@@ -124,6 +126,8 @@ agent service differs.
 | `cursor` | `cursor` | `tools`, `stack` | `src/cursor-stack/Dockerfile` |
 | `codex` | `codex` | `tools`, `stack` | `src/codex-stack/Dockerfile` |
 | `grok` | `grok` | `tools`, `stack` | `src/grok-stack/Dockerfile` |
+| `hermes` | `hermes` | `tools`, `stack` | `src/hermes-stack/Dockerfile` |
+| `pi` | `pi` | `tools`, `stack` | `src/pi-stack/Dockerfile` |
 
 Agent services exist only in their own compose file — `claude` is defined in
 `docker-compose-claude.yml`, not in `docker-compose.yml`. Full-isolation variants add a
@@ -132,7 +136,7 @@ Agent services exist only in their own compose file — `claude` is defined in
 ### Project templates
 
 `code-inference` offers to create missing workspace files from `templates/<agent>-default`
-when you launch an agent in a new project. Files shared by all five templates
+when you launch an agent in a new project. Files shared by all seven templates
 (`docs/git-workflow.md`, `.pre-commit-config.yaml`, `dev-requirements.txt`,
 `.github/workflows/`) must stay byte-identical; `scripts/check-template-sync.sh` enforces that
 in pre-commit and CI.

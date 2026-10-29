@@ -48,9 +48,13 @@ code-inference --agent claude               # Claude Code
 code-inference --agent cursor               # Cursor CLI
 code-inference --agent codex                # Codex CLI
 code-inference --agent grok                 # Grok Build
+code-inference --agent hermes               # Hermes Agent
+code-inference --agent pi                   # Pi coding agent
 ```
 
-Each agent's image is pulled on demand, so there is nothing extra to install.
+Each agent's image is built from this checkout on first use (opencode pulls its
+published upstream image), so the first launch of an agent takes longer than
+the rest.
 Every agent keeps its own configuration and session history, so switching
 between them — or running several at once — does not mix their state.
 

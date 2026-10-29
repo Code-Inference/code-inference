@@ -62,6 +62,12 @@ jobs:
           - agent: grok
             dockerfile: src/grok-stack/Dockerfile
             flavor: 'suffix=-grok,latest=false'
+          - agent: hermes
+            dockerfile: src/hermes-stack/Dockerfile
+            flavor: 'suffix=-hermes,latest=false'
+          - agent: pi
+            dockerfile: src/pi-stack/Dockerfile
+            flavor: 'suffix=-pi,latest=false'
     steps:
       - uses: actions/checkout@v4
 
